@@ -6,7 +6,7 @@ const dbConfig = require('./config/database');
 const { isValidUserId, sanitizeString, isValidQueryResult } = require('./utils/validators');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.BACKEND_PORT || 3001;
 
 // 中间件
 app.use(cors());

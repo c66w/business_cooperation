@@ -20,7 +20,7 @@ fi
 
 echo "✅ 依赖安装完成"
 echo "🌟 启动开发服务器..."
-echo "📱 前端地址: http://localhost:3000"
+echo "📱 前端地址: http://localhost:6415"
 echo "🔧 后端地址: http://localhost:3001"
 echo ""
 

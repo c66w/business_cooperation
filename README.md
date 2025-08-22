@@ -101,13 +101,13 @@ npm run dev
 # 启动后端服务 (端口: 3001)
 npm run server
 
-# 启动前端服务 (端口: 3000)
+# 启动前端服务 (端口: 6415)
 npm run client
 ```
 
 ### 5. 访问应用
 
-- 前端应用: http://localhost:3000
+- 前端应用: http://localhost:6415
 - 后端API: http://localhost:3001
 
 ## API接口
