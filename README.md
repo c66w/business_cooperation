@@ -110,6 +110,60 @@ npm run client
 - 前端应用: http://localhost:6415
 - 后端API: http://localhost:3001
 
+## 🔧 后台服务管理
+
+### 后台启动/停止脚本
+
+项目提供了便捷的后台服务管理脚本：
+
+#### 🚀 后台启动
+```bash
+./start-daemon.sh
+```
+- 自动检查并安装依赖
+- 后台启动前端和后端服务
+- 生成PID文件用于进程管理
+- 记录服务日志到 `logs/` 目录
+
+#### 🛑 停止服务
+```bash
+./stop-daemon.sh
+```
+- 优雅停止所有服务
+- 清理PID文件
+- 可选择清理日志文件
+
+#### 📊 查看状态
+```bash
+./status-daemon.sh
+```
+- 显示服务运行状态
+- 检查端口占用情况
+- 显示进程信息和资源使用
+- 显示最近的日志内容
+
+#### 🔄 重启服务
+```bash
+./restart-daemon.sh
+```
+- 先停止再启动所有服务
+
+#### 📋 日志管理
+```bash
+# 查看后端日志
+tail -f logs/backend.log
+
+# 查看前端日志
+tail -f logs/frontend.log
+
+# 实时监控状态
+watch -n 2 ./status-daemon.sh
+```
+
+### 服务端口配置
+- **前端服务**: 6415 (可通过 `frontend/.env` 中的 `PORT` 修改)
+- **后端服务**: 3001 (可通过 `backend/.env` 中的 `BACKEND_PORT` 修改)
+
 ## API接口
 
 ### 获取商家合作列表
