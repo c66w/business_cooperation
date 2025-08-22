@@ -1,0 +1,13 @@
+.App {
+  text-align: center;
+}
+
+.review-header {
+  background: #001529 !important;
+}
+
+.review-header h1 {
+  color: white !important;
+  margin: 0;
+  line-height: 64px;
+}
