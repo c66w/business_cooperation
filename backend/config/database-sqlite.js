@@ -41,10 +41,19 @@ async function initializeDatabase() {
           db.run('PRAGMA foreign_keys = ON', (err) => {
             if (err) {
               console.warn('⚠️  启用外键约束失败:', err.message);
+              resolve(db);
             } else {
               console.log('✅ SQLite外键约束已启用');
+              // 验证外键约束是否真的启用了
+              db.get('PRAGMA foreign_keys', (err, row) => {
+                if (err) {
+                  console.warn('⚠️  检查外键约束状态失败:', err.message);
+                } else {
+                  console.log('🔍 外键约束状态验证:', row);
+                }
+                resolve(db);
+              });
             }
-            resolve(db);
           });
         }
       });
