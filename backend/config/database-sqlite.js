@@ -141,7 +141,46 @@ async function beginTransaction() {
           // 返回事务对象
           const transaction = {
             execute: async (sql, params = []) => {
-              return await execute(sql, params);
+              return new Promise((resolve, reject) => {
+                try {
+                  // 判断是SELECT还是其他操作
+                  const isSelect = sql.trim().toUpperCase().startsWith('SELECT');
+
+                  if (isSelect) {
+                    // SELECT查询
+                    database.all(sql, params, (err, rows) => {
+                      if (err) {
+                        console.error('SQLite事务查询失败:', err.message);
+                        console.error('SQL语句:', sql);
+                        console.error('参数:', params);
+                        reject(err);
+                      } else {
+                        resolve(rows || []);
+                      }
+                    });
+                  } else {
+                    // INSERT, UPDATE, DELETE等操作
+                    database.run(sql, params, function(err) {
+                      if (err) {
+                        console.error('SQLite事务执行失败:', err.message);
+                        console.error('SQL语句:', sql);
+                        console.error('参数:', params);
+                        reject(err);
+                      } else {
+                        // 返回类似MySQL的结果格式
+                        resolve([{
+                          insertId: this.lastID,
+                          affectedRows: this.changes,
+                          changedRows: this.changes
+                        }]);
+                      }
+                    });
+                  }
+                } catch (error) {
+                  console.error('SQLite事务执行异常:', error.message);
+                  reject(error);
+                }
+              });
             },
             commit: async () => {
               return new Promise((resolve, reject) => {
