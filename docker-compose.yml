@@ -2,8 +2,9 @@ services:
   business-cooperation:
     build: .
     ports:
-      - "3001:3001"  # 主服务端口（后端API + 前端静态文件）
-      - "8000:8000"  # Python服务端口（可选，用于直接访问Python API）
+      - "6415:6415"  # 前端页面端口
+      - "3001:3001"  # 后端API端口
+      - "8000:8000"  # Python服务端口
     environment:
       - NODE_ENV=production
       - HOST=0.0.0.0

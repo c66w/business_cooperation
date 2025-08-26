@@ -51,9 +51,14 @@ RUN echo '#!/bin/bash' > start.sh && \
     echo '# 等待Python服务启动' >> start.sh && \
     echo 'sleep 5' >> start.sh && \
     echo '' >> start.sh && \
-    echo '# 在生产环境中，后端服务器会同时服务API和前端静态文件' >> start.sh && \
-    echo '# 启动后端服务（包含前端静态文件服务）' >> start.sh && \
-    echo 'cd /app/backend && node server.js' >> start.sh && \
+    echo '# 启动后端服务（后台运行）' >> start.sh && \
+    echo 'cd /app/backend && node server.js &' >> start.sh && \
+    echo '' >> start.sh && \
+    echo '# 等待后端服务启动' >> start.sh && \
+    echo 'sleep 3' >> start.sh && \
+    echo '' >> start.sh && \
+    echo '# 启动前端服务（前台运行）' >> start.sh && \
+    echo 'cd /app/frontend && npm start' >> start.sh && \
     chmod +x start.sh && \
     ls -la start.sh && \
     cat start.sh
