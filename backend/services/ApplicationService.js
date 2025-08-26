@@ -108,18 +108,35 @@ class ApplicationService {
    */
   async saveBasicApplication(transaction, userId, data) {
     const sql = `
-      INSERT INTO business_cooperation 
+      INSERT INTO business_cooperation
       (user_id, company_name, attendee_name, contact_info, merchant_type, status, submitted_at)
       VALUES (?, ?, ?, ?, ?, 'submitted', CURRENT_TIMESTAMP)
     `;
-    
-    await transaction.execute(sql, [
+
+    console.log('🔄 准备插入business_cooperation表:', {
+      userId,
+      company_name: data.company_name,
+      contact_name: data.contact_name,
+      contact_phone: data.contact_phone,
+      merchant_type: data.merchant_type
+    });
+
+    const result = await transaction.execute(sql, [
       userId,
       data.company_name,
       data.contact_name,
       data.contact_phone,
       data.merchant_type
     ]);
+
+    console.log('✅ business_cooperation表插入成功:', result);
+
+    // 验证插入是否成功
+    const verification = await transaction.execute(
+      'SELECT COUNT(*) as count FROM business_cooperation WHERE user_id = ?',
+      [userId]
+    );
+    console.log('🔍 验证business_cooperation表插入:', verification);
   }
 
   /**
@@ -128,6 +145,19 @@ class ApplicationService {
   async saveDynamicFields(transaction, userId, data) {
     const dynamicFields = this.extractDynamicFields(data);
 
+    console.log('🔄 准备插入merchant_details表:', {
+      userId,
+      merchant_type: data.merchant_type,
+      dynamicFields
+    });
+
+    // 先验证business_cooperation表中是否存在该user_id
+    const bcCheck = await transaction.execute(
+      'SELECT user_id FROM business_cooperation WHERE user_id = ?',
+      [userId]
+    );
+    console.log('🔍 检查business_cooperation表中的user_id:', bcCheck);
+
     for (const [fieldName, fieldValue] of Object.entries(dynamicFields)) {
       const sql = `
         INSERT INTO merchant_details
@@ -135,8 +165,17 @@ class ApplicationService {
         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
       `;
 
+      console.log('🔄 插入merchant_details记录:', {
+        userId,
+        merchant_type: data.merchant_type,
+        fieldName,
+        fieldValue: String(fieldValue)
+      });
+
       await transaction.execute(sql, [userId, data.merchant_type, fieldName, String(fieldValue)]);
     }
+
+    console.log('✅ 所有merchant_details记录插入完成');
   }
 
   /**
