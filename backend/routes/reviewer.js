@@ -281,7 +281,7 @@ router.get('/application/:applicationId', authenticateToken, requireReviewer, as
       });
     }
 
-    // 检查审核员权限：必须是分配给自己的任务或管理员
+    // 检查审核员权限：管理员可以查看所有，审核员只能查看分配给自己的
     if (req.user.role === 'reviewer') {
       const [task] = await execute(
         'SELECT * FROM workflow_tasks WHERE user_id = ? AND assigned_to = ?',
@@ -299,6 +299,7 @@ router.get('/application/:applicationId', authenticateToken, requireReviewer, as
         });
       }
     }
+    // 管理员无需权限检查，可以查看所有申请
 
     // 获取动态字段
     const dynamicFields = await execute(
@@ -372,13 +373,14 @@ router.get('/task/:taskId/application', authenticateToken, requireReviewer, asyn
       });
     }
 
-    // 检查任务是否分配给当前审核员
+    // 检查任务权限：管理员可以查看所有，审核员只能查看分配给自己的
     if (req.user.role === 'reviewer' && task.assigned_to !== req.user.userId) {
       return res.status(403).json({
         success: false,
         message: '此任务未分配给您，无权查看'
       });
     }
+    // 管理员无需权限检查，可以查看所有任务
 
     // 获取申请信息
     const [application] = await execute(
