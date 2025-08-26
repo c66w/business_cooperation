@@ -14,6 +14,9 @@ const sqliteSchema = `
 -- 商家合作Agent & Workflow系统SQLite版本
 -- =============================================
 
+-- 临时禁用外键约束
+PRAGMA foreign_keys = OFF;
+
 -- 1. 商家合作基础信息表
 CREATE TABLE IF NOT EXISTS business_cooperation (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -208,6 +211,9 @@ CREATE TABLE IF NOT EXISTS merchant_type_fields (
 
 CREATE INDEX IF NOT EXISTS idx_merchant_type_fields_merchant_type ON merchant_type_fields(merchant_type);
 CREATE INDEX IF NOT EXISTS idx_merchant_type_fields_display_order ON merchant_type_fields(display_order);
+
+-- 重新启用外键约束
+PRAGMA foreign_keys = ON;
 `;
 
 /**
@@ -352,6 +358,9 @@ async function executeSQLStatements(sqlContent) {
  * 创建所有表
  */
 async function createTables() {
+  // 临时禁用外键约束
+  await execute('PRAGMA foreign_keys = OFF');
+
   const tables = [
     `CREATE TABLE IF NOT EXISTS business_cooperation (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -514,6 +523,10 @@ async function createTables() {
       throw error;
     }
   }
+
+  // 重新启用外键约束
+  await execute('PRAGMA foreign_keys = ON');
+  console.log('✅ 外键约束已重新启用');
 }
 
 /**
