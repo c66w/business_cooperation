@@ -4,7 +4,7 @@ FROM downloads.unstructured.io/unstructured-io/unstructured:latest
 # 设置工作目录
 WORKDIR /app
 
-# 切换到root用户安装软件包
+# 切换到root用户并保持
 USER root
 
 # 安装Node.js和npm (用于前端和后端) - 适配Wolfi Linux
@@ -14,9 +14,6 @@ RUN apk add \
     npm \
     bash \
     && rm -rf /var/cache/apk/*
-
-# 切换回原用户
-USER notebook-user
 
 # 安装Python依赖
 COPY document_service/requirements.txt /app/document_service/
@@ -28,10 +25,7 @@ COPY document_service/ /app/document_service/
 # 复制后端代码
 COPY backend/ /app/backend/
 
-# 切换到root用户进行npm安装
-USER root
-
-# 安装后端依赖
+# 安装后端依赖 (已经是root用户)
 WORKDIR /app/backend
 RUN npm install
 
@@ -42,7 +36,7 @@ COPY frontend/ /app/frontend/
 WORKDIR /app/frontend
 RUN npm install && npm run build
 
-# 创建启动脚本 (保持root权限)
+# 创建启动脚本 (root权限)
 WORKDIR /app
 RUN echo '#!/bin/bash' > start.sh && \
     echo '# 启动Python服务' >> start.sh && \
@@ -63,8 +57,7 @@ RUN echo '#!/bin/bash' > start.sh && \
     ls -la start.sh && \
     cat start.sh
 
-# 切换回notebook-user
-USER notebook-user
+# 保持root用户运行
 
 # 暴露端口
 EXPOSE 6415 3001 8000
