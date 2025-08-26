@@ -15,6 +15,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # 导入服务模块
 from services.llm_service import llm_service
+from services.oss_service import oss_service
+from config.settings import settings, OSS_CONFIG
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -89,22 +91,67 @@ async def upload_document(
         with open(file_path, "wb") as temp_file:
             temp_file.write(content)
 
-        # 模拟OSS上传URL
-        fake_oss_url = f"https://demo-bucket.oss-cn-hangzhou.aliyuncs.com/documents/{user_id}/{document_id}-{file.filename}"
+        # 使用真实的OSS服务上传文件
+        try:
+            # 生成OSS文件键
+            file_key = oss_service.generate_file_key(user_id, file.filename)
 
-        print(f"📄 上传并保存文档: {file.filename} ({file_size} bytes) -> {file_path}")
+            # 上传到OSS
+            upload_result = await oss_service.upload_file(content, file_key)
 
-        return {
-            "success": True,
-            "message": "文档上传成功",
-            "data": {
-                "document_id": document_id,
-                "oss_url": fake_oss_url,
-                "file_name": file.filename,
-                "file_size": file_size,
-                "file_path": file_path  # 添加文件路径用于解析
+            if upload_result["success"]:
+                print(f"📄 文档上传到OSS成功: {file.filename} ({file_size} bytes) -> {upload_result['oss_url']}")
+
+                return {
+                    "success": True,
+                    "message": "文档上传成功",
+                    "data": {
+                        "document_id": document_id,
+                        "oss_url": upload_result["oss_url"],
+                        "oss_key": upload_result["oss_key"],
+                        "file_name": file.filename,
+                        "file_size": file_size,
+                        "file_path": file_path  # 保留本地路径用于解析
+                    }
+                }
+            else:
+                # OSS上传失败，使用本地文件
+                print(f"⚠️  OSS上传失败: {upload_result.get('error', '未知错误')}")
+                print(f"📄 使用本地文件: {file.filename} -> {file_path}")
+
+                # 生成本地文件URL
+                local_url = f"http://{settings.service_host}:{settings.service_port}/files/{document_id}_{file.filename}"
+
+                return {
+                    "success": True,
+                    "message": "文档上传成功（本地存储）",
+                    "data": {
+                        "document_id": document_id,
+                        "oss_url": local_url,
+                        "file_name": file.filename,
+                        "file_size": file_size,
+                        "file_path": file_path
+                    }
+                }
+
+        except Exception as oss_error:
+            print(f"❌ OSS服务异常: {oss_error}")
+            print(f"📄 回退到本地存储: {file.filename} -> {file_path}")
+
+            # 生成本地文件URL
+            local_url = f"http://{settings.service_host}:{settings.service_port}/files/{document_id}_{file.filename}"
+
+            return {
+                "success": True,
+                "message": "文档上传成功（本地存储）",
+                "data": {
+                    "document_id": document_id,
+                    "oss_url": local_url,
+                    "file_name": file.filename,
+                    "file_size": file_size,
+                    "file_path": file_path
+                }
             }
-        }
 
     except Exception as e:
         print(f"❌ 上传失败: {e}")
