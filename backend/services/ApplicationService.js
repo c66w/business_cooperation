@@ -158,6 +158,16 @@ class ApplicationService {
     );
     console.log('🔍 检查business_cooperation表中的user_id:', bcCheck);
 
+    // 检查表结构和外键约束
+    const tableInfo = await transaction.execute('PRAGMA table_info(merchant_details)');
+    console.log('🔍 merchant_details表结构:', tableInfo);
+
+    const foreignKeys = await transaction.execute('PRAGMA foreign_key_list(merchant_details)');
+    console.log('🔍 merchant_details外键约束:', foreignKeys);
+
+    const bcTableInfo = await transaction.execute('PRAGMA table_info(business_cooperation)');
+    console.log('🔍 business_cooperation表结构:', bcTableInfo);
+
     for (const [fieldName, fieldValue] of Object.entries(dynamicFields)) {
       const sql = `
         INSERT INTO merchant_details
