@@ -283,16 +283,16 @@ npm start
 
 ```bash
 # 1. 构建镜像
-docker-compose build
+docker compose build
 
 # 2. 启动服务
-docker-compose up -d
+docker compose up -d
 
 # 3. 查看日志
-docker-compose logs -f
+docker compose logs -f
 
 # 4. 停止服务
-docker-compose down
+docker compose down
 ```
 
 ### 生产环境部署
