@@ -19,7 +19,8 @@ import {
   Col,
   Statistic,
   Timeline,
-  Radio
+  Radio,
+  Typography
 } from 'antd';
 import {
   EyeOutlined,
@@ -28,7 +29,8 @@ import {
   EditOutlined,
   ClockCircleOutlined,
   UserOutlined,
-  FileTextOutlined
+  FileTextOutlined,
+  ProfileOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -36,6 +38,7 @@ const { Header, Content, Sider } = Layout;
 const { TextArea } = Input;
 const { Option } = Select;
 const { TabPane } = Tabs;
+const { Text } = Typography;
 
 const ReviewManagementPage = () => {
   const { user, apiRequest } = useAuth();
@@ -495,65 +498,288 @@ const ReviewManagementPage = () => {
 
       {/* 详情模态框 */}
       <Modal
-        title="商家申请详情"
+        title={
+          <div style={{
+            fontSize: '18px',
+            fontWeight: 600,
+            color: '#1890ff',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <FileTextOutlined />
+            商家合作详情
+          </div>
+        }
         open={detailModalVisible}
         onCancel={() => setDetailModalVisible(false)}
-        footer={null}
-        width={1000}
+        footer={[
+          <Button
+            key="close"
+            size="large"
+            onClick={() => setDetailModalVisible(false)}
+            style={{ minWidth: '100px' }}
+          >
+            关闭
+          </Button>
+        ]}
+        width={1200}
+        style={{ top: 20 }}
       >
         {selectedTask && (
-          <div>
-            <Descriptions title="基本信息" bordered column={2} style={{ marginBottom: 24 }}>
-              <Descriptions.Item label="申请编号">{selectedTask.user_id}</Descriptions.Item>
-              <Descriptions.Item label="公司名称">{selectedTask.company_name}</Descriptions.Item>
-              <Descriptions.Item label="商家类型">
-                <Tag color="blue">{merchantTypeMap[selectedTask.merchant_type]}</Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="联系人">{selectedTask.contact_name}</Descriptions.Item>
-              <Descriptions.Item label="联系电话">{selectedTask.contact_phone}</Descriptions.Item>
-              <Descriptions.Item label="联系邮箱">{selectedTask.contact_email || '未提供'}</Descriptions.Item>
-              <Descriptions.Item label="提交时间">
-                {selectedTask.submitted_at ? new Date(selectedTask.submitted_at).toLocaleString() : '-'}
-              </Descriptions.Item>
-              <Descriptions.Item label="当前状态">
-                <Tag color={statusMap[selectedTask.status]?.color}>
-                  {statusMap[selectedTask.status]?.text}
-                </Tag>
-              </Descriptions.Item>
-            </Descriptions>
+          <div style={{ maxHeight: '70vh', overflowY: 'auto', padding: '8px 0' }}>
+            {/* 基本信息卡片 */}
+            <Card
+              title={
+                <div style={{ color: '#1890ff', fontWeight: 600 }}>
+                  <UserOutlined style={{ marginRight: 8 }} />
+                  基本信息
+                </div>
+              }
+              style={{
+                marginBottom: 24,
+                borderRadius: '12px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+              }}
+              headStyle={{
+                background: 'linear-gradient(135deg, #f0f9ff, #e0f2fe)',
+                borderRadius: '12px 12px 0 0'
+              }}
+            >
+              <Row gutter={[24, 16]}>
+                <Col span={12}>
+                  <div style={{ marginBottom: 16 }}>
+                    <Text type="secondary" style={{ fontSize: '13px' }}>用户ID</Text>
+                    <div style={{
+                      fontSize: '15px',
+                      fontWeight: 500,
+                      color: '#262626',
+                      fontFamily: 'Monaco, monospace',
+                      background: '#f5f5f5',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      marginTop: '4px'
+                    }}>
+                      {selectedTask.user_id}
+                    </div>
+                  </div>
+                </Col>
+                <Col span={12}>
+                  <div style={{ marginBottom: 16 }}>
+                    <Text type="secondary" style={{ fontSize: '13px' }}>公司名称</Text>
+                    <div style={{
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: '#1890ff',
+                      marginTop: '4px'
+                    }}>
+                      {selectedTask.company_name}
+                    </div>
+                  </div>
+                </Col>
+                <Col span={12}>
+                  <div style={{ marginBottom: 16 }}>
+                    <Text type="secondary" style={{ fontSize: '13px' }}>联系人姓名</Text>
+                    <div style={{ fontSize: '15px', fontWeight: 500, marginTop: '4px' }}>
+                      {selectedTask.contact_name}
+                    </div>
+                  </div>
+                </Col>
+                <Col span={12}>
+                  <div style={{ marginBottom: 16 }}>
+                    <Text type="secondary" style={{ fontSize: '13px' }}>联系电话</Text>
+                    <div style={{ fontSize: '15px', fontWeight: 500, marginTop: '4px' }}>
+                      {selectedTask.contact_phone}
+                    </div>
+                  </div>
+                </Col>
+                <Col span={12}>
+                  <div style={{ marginBottom: 16 }}>
+                    <Text type="secondary" style={{ fontSize: '13px' }}>商家类型</Text>
+                    <div style={{ marginTop: '4px' }}>
+                      <Tag
+                        color="blue"
+                        style={{
+                          fontSize: '14px',
+                          padding: '4px 12px',
+                          borderRadius: '16px'
+                        }}
+                      >
+                        {merchantTypeMap[selectedTask.merchant_type]}
+                      </Tag>
+                    </div>
+                  </div>
+                </Col>
+                <Col span={12}>
+                  <div style={{ marginBottom: 16 }}>
+                    <Text type="secondary" style={{ fontSize: '13px' }}>申请状态</Text>
+                    <div style={{ marginTop: '4px' }}>
+                      <Tag
+                        color={statusMap[selectedTask.status]?.color}
+                        style={{
+                          fontSize: '14px',
+                          padding: '4px 12px',
+                          borderRadius: '16px'
+                        }}
+                      >
+                        {statusMap[selectedTask.status]?.text}
+                      </Tag>
+                    </div>
+                  </div>
+                </Col>
+                <Col span={12}>
+                  <div>
+                    <Text type="secondary" style={{ fontSize: '13px' }}>提交时间</Text>
+                    <div style={{ fontSize: '14px', marginTop: '4px' }}>
+                      {selectedTask.submitted_at ? new Date(selectedTask.submitted_at).toLocaleString() : '-'}
+                    </div>
+                  </div>
+                </Col>
+                <Col span={12}>
+                  <div>
+                    <Text type="secondary" style={{ fontSize: '13px' }}>联系邮箱</Text>
+                    <div style={{ fontSize: '14px', marginTop: '4px' }}>
+                      {selectedTask.contact_email || '未提供'}
+                    </div>
+                  </div>
+                </Col>
+              </Row>
+            </Card>
 
+            {/* 详细信息卡片 */}
             {selectedTask.dynamic_fields && selectedTask.dynamic_fields.length > 0 && (
-              <Card title="详细信息" style={{ marginBottom: 24 }}>
-                <Descriptions bordered column={1}>
+              <Card
+                title={
+                  <div style={{ color: '#52c41a', fontWeight: 600 }}>
+                    <ProfileOutlined style={{ marginRight: 8 }} />
+                    详细信息
+                  </div>
+                }
+                style={{
+                  marginBottom: 24,
+                  borderRadius: '12px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+                }}
+                headStyle={{
+                  background: 'linear-gradient(135deg, #f6ffed, #f0f9ff)',
+                  borderRadius: '12px 12px 0 0'
+                }}
+              >
+                <Row gutter={[24, 16]}>
                   {selectedTask.dynamic_fields.map((field, index) => (
-                    <Descriptions.Item key={index} label={field.field_name}>
-                      {field.field_value}
-                    </Descriptions.Item>
+                    <Col span={24} key={index}>
+                      <div style={{ marginBottom: 12 }}>
+                        <Text type="secondary" style={{ fontSize: '13px' }}>
+                          {field.field_name}
+                        </Text>
+                        <div style={{
+                          fontSize: '15px',
+                          marginTop: '4px',
+                          padding: '8px 12px',
+                          background: '#fafafa',
+                          borderRadius: '6px',
+                          border: '1px solid #f0f0f0'
+                        }}>
+                          {field.field_value}
+                        </div>
+                      </div>
+                    </Col>
                   ))}
-                </Descriptions>
+                </Row>
               </Card>
             )}
 
+            {/* 资质文档卡片 */}
             {selectedTask.documents && selectedTask.documents.length > 0 && (
-              <Card title="资质文档" style={{ marginBottom: 24 }}>
+              <Card
+                title={
+                  <div style={{ color: '#fa8c16', fontWeight: 600 }}>
+                    <FileTextOutlined style={{ marginRight: 8 }} />
+                    资质文档
+                    <Tag
+                      color="orange"
+                      style={{ marginLeft: 8, borderRadius: '12px' }}
+                    >
+                      共 {selectedTask.documents.length} 个文档
+                    </Tag>
+                  </div>
+                }
+                style={{
+                  borderRadius: '12px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+                }}
+                headStyle={{
+                  background: 'linear-gradient(135deg, #fff7e6, #fef9e7)',
+                  borderRadius: '12px 12px 0 0'
+                }}
+              >
                 <List
                   dataSource={selectedTask.documents}
-                  renderItem={(doc) => (
+                  renderItem={(doc, index) => (
                     <List.Item
+                      style={{
+                        padding: '16px',
+                        marginBottom: '8px',
+                        background: '#fafafa',
+                        borderRadius: '8px',
+                        border: '1px solid #f0f0f0'
+                      }}
                       actions={[
                         <Button
-                          type="link"
+                          type="primary"
+                          ghost
                           icon={<EyeOutlined />}
                           onClick={() => handleViewFile(doc.oss_url || doc.file_url, doc.file_name)}
+                          style={{ borderRadius: '6px' }}
                         >
                           查看
                         </Button>
                       ]}
                     >
                       <List.Item.Meta
-                        avatar={<FileTextOutlined />}
-                        title={doc.file_name}
-                        description={`上传时间: ${new Date(doc.upload_time).toLocaleString()}`}
+                        avatar={
+                          <div style={{
+                            width: 40,
+                            height: 40,
+                            background: 'linear-gradient(135deg, #ff9a9e, #fecfef)',
+                            borderRadius: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}>
+                            <FileTextOutlined style={{ color: '#fff', fontSize: '18px' }} />
+                          </div>
+                        }
+                        title={
+                          <div
+                            style={{
+                              fontSize: '15px',
+                              fontWeight: 500,
+                              color: '#262626',
+                              cursor: 'pointer'
+                            }}
+                            onClick={() => handleViewFile(doc.oss_url || doc.file_url, doc.file_name)}
+                          >
+                            {doc.file_name}
+                          </div>
+                        }
+                        description={
+                          <div>
+                            <div style={{ color: '#8c8c8c', fontSize: '13px' }}>
+                              文件类型: {doc.file_type || 'APPLICATION/PDF'}
+                            </div>
+                            <div style={{ color: '#8c8c8c', fontSize: '13px', marginTop: '2px' }}>
+                              上传时间: {new Date(doc.upload_time).toLocaleString()}
+                            </div>
+                            <div style={{
+                              color: '#1890ff',
+                              fontSize: '12px',
+                              marginTop: '4px'
+                            }}>
+                              💡 点击文件名或"查看"按钮可在线查看文件
+                            </div>
+                          </div>
+                        }
                       />
                     </List.Item>
                   )}
