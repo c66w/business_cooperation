@@ -27,6 +27,51 @@ import { useAuth } from '../contexts/AuthContext';
 
 const { Title, Text } = Typography;
 
+// 字段名称映射函数
+const getFieldDisplayName = (fieldName) => {
+  const fieldMap = {
+    'company_name': '公司名称',
+    'contact_name': '联系人姓名',
+    'contact_phone': '联系电话',
+    'contact_email': '联系邮箱',
+    'product_category': '产品品类',
+    'specific_products': '具体产品',
+    'business_address': '营业地址',
+    'registration_capital': '注册资本',
+    'establishment_date': '成立时间',
+    'business_scope': '经营范围',
+    'company_description': '公司简介',
+    'annual_production_capacity': '年生产规模',
+    'own_brand': '自有品牌',
+    'brand_name': '品牌名称',
+    'cooperation_requirements': '合作需求',
+    'merchant_type': '商家类型',
+    'own_brand_operation_ability': '自有品牌运营能力',
+    'oem_famous_brands': '代工的知名品牌',
+    'accept_brand_cocreation': '接受品牌共创',
+    'accept_deep_cooperation': '接受深度合作',
+    'accept_online_exclusive': '接受线上独家',
+    'brand_awareness': '品牌知名度',
+    'sales_data': '销售数据',
+    'cooperation_budget': '合作预算',
+    'dealer_brand_names': '经销的品牌名称',
+    'industry_operator_contact': '对接行业运营花名'
+  };
+
+  return fieldMap[fieldName] || fieldName;
+};
+
+// 安全地获取字段值
+const getFieldValue = (value) => {
+  if (value === null || value === undefined) {
+    return '未填写';
+  }
+  if (typeof value === 'object') {
+    return JSON.stringify(value);
+  }
+  return String(value);
+};
+
 const ApplicationDetailPage = () => {
   const { applicationId } = useParams();
   const navigate = useNavigate();
@@ -165,12 +210,9 @@ const ApplicationDetailPage = () => {
             {application.dynamic_fields.map((field, index) => (
               <Descriptions.Item
                 key={index}
-                label={field.field_name}
+                label={getFieldDisplayName(field.field_name)}
               >
-                {Array.isArray(field.field_value)
-                  ? field.field_value.join(', ')
-                  : field.field_value
-                }
+                {getFieldValue(field.field_value)}
               </Descriptions.Item>
             ))}
           </Descriptions>
