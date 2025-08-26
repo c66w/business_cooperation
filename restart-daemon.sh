@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 # 项目根目录
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo -e "${BLUE}🔄 重启商家合作查看系统...${NC}"
+echo -e "${BLUE}🔄 重启混合架构系统 (Node.js + Python)...${NC}"
 echo ""
 
 # 停止服务
@@ -39,4 +39,7 @@ else
 fi
 
 echo ""
-echo -e "${GREEN}🎉 重启完成！${NC}"
+echo -e "${GREEN}🎉 混合架构系统重启完成！${NC}"
+echo -e "${BLUE}📱 前端: http://localhost:6415${NC}"
+echo -e "${BLUE}🔧 后端: http://localhost:3001${NC}"
+echo -e "${BLUE}🐍 Python微服务: http://localhost:8000${NC}"

@@ -18,14 +18,17 @@ LOGS_DIR="$PROJECT_ROOT/logs"
 # PID文件路径
 BACKEND_PID_FILE="$LOGS_DIR/backend.pid"
 FRONTEND_PID_FILE="$LOGS_DIR/frontend.pid"
+PYTHON_SERVICE_PID_FILE="$LOGS_DIR/python_service.pid"
 
 # 日志文件路径
 BACKEND_LOG_FILE="$LOGS_DIR/backend.log"
 FRONTEND_LOG_FILE="$LOGS_DIR/frontend.log"
+PYTHON_SERVICE_LOG_FILE="$LOGS_DIR/python_service.log"
 
 # 端口配置
 BACKEND_PORT=3001
 FRONTEND_PORT=6415
+PYTHON_SERVICE_PORT=8000
 
 echo -e "${BLUE}📊 商家合作查看系统 - 状态检查${NC}"
 echo "=================================================="
@@ -145,6 +148,8 @@ show_quick_actions() {
     echo "--------------------------------------------------"
     echo -e "  启动服务: ${BLUE}./start-daemon.sh${NC}"
     echo -e "  停止服务: ${BLUE}./stop-daemon.sh${NC}"
+    echo -e "  重启服务: ${BLUE}./restart-daemon.sh${NC}"
+    echo -e "  查看Python日志: ${BLUE}tail -f $PYTHON_SERVICE_LOG_FILE${NC}"
     echo -e "  查看后端日志: ${BLUE}tail -f $BACKEND_LOG_FILE${NC}"
     echo -e "  查看前端日志: ${BLUE}tail -f $FRONTEND_LOG_FILE${NC}"
     echo -e "  实时监控: ${BLUE}watch -n 2 ./status-daemon.sh${NC}"
@@ -152,24 +157,27 @@ show_quick_actions() {
 
 # 主检查流程
 main() {
+    # 检查Python微服务
+    check_service_status "Python微服务" "$PYTHON_SERVICE_PID_FILE" "$PYTHON_SERVICE_PORT" "$PYTHON_SERVICE_LOG_FILE"
+
     # 检查后端服务
     check_service_status "后端" "$BACKEND_PID_FILE" "$BACKEND_PORT" "$BACKEND_LOG_FILE"
-    
+
     # 检查前端服务
     check_service_status "前端" "$FRONTEND_PID_FILE" "$FRONTEND_PORT" "$FRONTEND_LOG_FILE"
-    
+
     # 检查网络连接
     check_network_status
-    
+
     # 显示系统资源
     show_system_resources
-    
+
     # 显示快速操作
     show_quick_actions
-    
+
     echo ""
     echo "=================================================="
-    echo -e "${GREEN}状态检查完成 - $(date)${NC}"
+    echo -e "${GREEN}混合架构系统状态检查完成 - $(date)${NC}"
 }
 
 # 执行主函数

@@ -19,6 +19,7 @@ LOGS_DIR="$PROJECT_ROOT/logs"
 # PID文件路径
 BACKEND_PID_FILE="$LOGS_DIR/backend.pid"
 FRONTEND_PID_FILE="$LOGS_DIR/frontend.pid"
+PYTHON_SERVICE_PID_FILE="$LOGS_DIR/python_service.pid"
 
 echo -e "${BLUE}🛑 停止商家合作查看系统...${NC}"
 
@@ -108,32 +109,56 @@ stop_service() {
 stop_all_processes() {
     echo -e "${BLUE}🔍 查找所有相关进程...${NC}"
     
-    # 查找可能的node进程
+    # 查找可能的node和python进程
     local node_pids=$(pgrep -f "react-scripts\|nodemon\|node.*server\.js" 2>/dev/null || echo "")
+    local python_pids=$(pgrep -f "python.*start_service\.py\|uvicorn" 2>/dev/null || echo "")
     
-    if [ -n "$node_pids" ]; then
-        echo -e "${YELLOW}发现可能相关的Node.js进程:${NC}"
-        echo "$node_pids" | while read -r pid; do
-            if [ -n "$pid" ]; then
-                local cmd=$(ps -p $pid -o command= 2>/dev/null || echo "")
-                echo "  PID $pid: $cmd"
-            fi
-        done
-        
+    if [ -n "$node_pids" ] || [ -n "$python_pids" ]; then
+        if [ -n "$node_pids" ]; then
+            echo -e "${YELLOW}发现可能相关的Node.js进程:${NC}"
+            echo "$node_pids" | while read -r pid; do
+                if [ -n "$pid" ]; then
+                    local cmd=$(ps -p $pid -o command= 2>/dev/null || echo "")
+                    echo "  PID $pid: $cmd"
+                fi
+            done
+        fi
+
+        if [ -n "$python_pids" ]; then
+            echo -e "${YELLOW}发现可能相关的Python进程:${NC}"
+            echo "$python_pids" | while read -r pid; do
+                if [ -n "$pid" ]; then
+                    local cmd=$(ps -p $pid -o command= 2>/dev/null || echo "")
+                    echo "  PID $pid: $cmd"
+                fi
+            done
+        fi
+
         echo ""
         read -p "是否要停止这些进程? (y/N): " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            echo "$node_pids" | while read -r pid; do
-                if [ -n "$pid" ] && kill -0 $pid 2>/dev/null; then
-                    echo "停止进程 $pid..."
-                    kill -TERM $pid 2>/dev/null || kill -KILL $pid 2>/dev/null || true
-                fi
-            done
+            if [ -n "$node_pids" ]; then
+                echo "$node_pids" | while read -r pid; do
+                    if [ -n "$pid" ] && kill -0 $pid 2>/dev/null; then
+                        echo "停止Node.js进程 $pid..."
+                        kill -TERM $pid 2>/dev/null || kill -KILL $pid 2>/dev/null || true
+                    fi
+                done
+            fi
+
+            if [ -n "$python_pids" ]; then
+                echo "$python_pids" | while read -r pid; do
+                    if [ -n "$pid" ] && kill -0 $pid 2>/dev/null; then
+                        echo "停止Python进程 $pid..."
+                        kill -TERM $pid 2>/dev/null || kill -KILL $pid 2>/dev/null || true
+                    fi
+                done
+            fi
             echo -e "${GREEN}✅ 相关进程已停止${NC}"
         fi
     else
-        echo -e "${GREEN}✅ 未发现相关的Node.js进程${NC}"
+        echo -e "${GREEN}✅ 未发现相关的Node.js或Python进程${NC}"
     fi
 }
 
@@ -155,18 +180,21 @@ cleanup_logs() {
 main() {
     # 停止前端服务
     stop_service "前端" "$FRONTEND_PID_FILE" "6415"
-    
+
     # 停止后端服务
     stop_service "后端" "$BACKEND_PID_FILE" "3001"
-    
+
+    # 停止Python微服务
+    stop_service "Python微服务" "$PYTHON_SERVICE_PID_FILE" "8000"
+
     # 检查是否还有相关进程
     stop_all_processes
-    
+
     # 询问是否清理日志
     cleanup_logs
-    
+
     echo ""
-    echo -e "${GREEN}🎉 系统已完全停止！${NC}"
+    echo -e "${GREEN}🎉 混合架构系统已完全停止！${NC}"
     echo ""
 }
 

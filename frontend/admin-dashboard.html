@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理员仪表板 - 商家合作系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 1.5rem;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .role-badge {
+            padding: 0.3rem 0.8rem;
+            background: #dc3545;
+            color: white;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .logout-btn {
+            padding: 0.5rem 1rem;
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .logout-btn:hover {
+            background: #5a6268;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .stat-card h3 {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-detail {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .section {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+
+        .section-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .section-header h2 {
+            color: #333;
+            font-size: 1.2rem;
+        }
+
+        .section-content {
+            padding: 1.5rem;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th,
+        .table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        .table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .status-badge {
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .status-pending { background: #fff3cd; color: #856404; }
+        .status-in-progress { background: #cce5ff; color: #004085; }
+        .status-completed { background: #d4edda; color: #155724; }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+
+        .workload-bar {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+
+        .workload-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745, #ffc107, #dc3545);
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏢 管理员仪表板</h1>
+        <div class="user-info">
+            <span id="userName">加载中...</span>
+            <span class="role-badge">管理员</span>
+            <button class="logout-btn" onclick="logout()">退出登录</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- 统计卡片 -->
+        <div class="stats-grid" id="statsGrid">
+            <div class="loading">正在加载统计数据...</div>
+        </div>
+
+        <!-- 审核员工作负载 -->
+        <div class="section">
+            <div class="section-header">
+                <h2>📊 审核员工作负载</h2>
+                <button class="btn btn-primary" onclick="refreshData()">刷新数据</button>
+            </div>
+            <div class="section-content">
+                <div id="reviewerWorkload">
+                    <div class="loading">正在加载工作负载数据...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 最近任务 -->
+        <div class="section">
+            <div class="section-header">
+                <h2>📋 最近任务</h2>
+                <button class="btn btn-primary" onclick="window.open('http://localhost:3000/admin', '_blank')">打开完整管理页面</button>
+            </div>
+            <div class="section-content">
+                <div id="recentTasks">
+                    <div class="loading">正在加载任务数据...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001/api';
+        let token = localStorage.getItem('token');
+        let user = JSON.parse(localStorage.getItem('user') || '{}');
+
+        // 检查登录状态
+        if (!token || user.role !== 'admin') {
+            alert('请先登录管理员账户');
+            window.location.href = 'login.html';
+        }
+
+        // 设置用户信息
+        document.getElementById('userName').textContent = user.name || '管理员';
+
+        // API请求封装
+        async function apiRequest(url, options = {}) {
+            const response = await fetch(`${API_BASE}${url}`, {
+                ...options,
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                }
+            });
+
+            if (response.status === 401) {
+                alert('登录已过期，请重新登录');
+                logout();
+                return null;
+            }
+
+            return await response.json();
+        }
+
+        // 加载仪表板数据
+        async function loadDashboard() {
+            try {
+                const data = await apiRequest('/admin/dashboard');
+
+                if (data && data.success) {
+                    renderStats(data.data);
+                    renderReviewerWorkload(data.data.reviewer_workload);
+                } else {
+                    console.error('Failed to load dashboard data:', data);
+                    document.getElementById('statsGrid').innerHTML = '<div style="color: red;">加载失败，请检查网络连接</div>';
+                }
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+                document.getElementById('statsGrid').innerHTML = '<div style="color: red;">网络错误：' + error.message + '</div>';
+            }
+        }
+
+        // 渲染统计卡片
+        function renderStats(data) {
+            const statsGrid = document.getElementById('statsGrid');
+            
+            statsGrid.innerHTML = `
+                <div class="stat-card">
+                    <h3>用户总数</h3>
+                    <div class="stat-number">${data.users.total_users}</div>
+                    <div class="stat-detail">
+                        管理员: ${data.users.admin_count} | 
+                        审核员: ${data.users.reviewer_count} | 
+                        商家: ${data.users.merchant_count}
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <h3>申请总数</h3>
+                    <div class="stat-number">${data.applications.total_applications}</div>
+                    <div class="stat-detail">
+                        今日新增: ${data.applications.today_applications} | 
+                        已通过: ${data.applications.approved_count}
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <h3>审核任务</h3>
+                    <div class="stat-number">${data.tasks.total_tasks}</div>
+                    <div class="stat-detail">
+                        待处理: ${data.tasks.pending_tasks} | 
+                        进行中: ${data.tasks.in_progress_tasks} | 
+                        已完成: ${data.tasks.completed_tasks}
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <h3>今日完成</h3>
+                    <div class="stat-number">${data.tasks.today_completed}</div>
+                    <div class="stat-detail">
+                        审核任务完成数量
+                    </div>
+                </div>
+            `;
+        }
+
+        // 渲染审核员工作负载
+        function renderReviewerWorkload(workload) {
+            const container = document.getElementById('reviewerWorkload');
+            
+            if (!workload || workload.length === 0) {
+                container.innerHTML = '<p>暂无审核员数据</p>';
+                return;
+            }
+
+            const html = workload.map(reviewer => {
+                const workloadPercent = (reviewer.current_tasks / reviewer.max_concurrent_tasks) * 100;
+                
+                return `
+                    <div style="margin-bottom: 1.5rem; padding: 1rem; border: 1px solid #eee; border-radius: 5px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <strong>${reviewer.name} (${reviewer.reviewer_id})</strong>
+                            <span>${reviewer.current_tasks} / ${reviewer.max_concurrent_tasks} 任务</span>
+                        </div>
+                        <div class="workload-bar">
+                            <div class="workload-fill" style="width: ${workloadPercent}%"></div>
+                        </div>
+                        <div style="font-size: 0.9rem; color: #666; margin-top: 0.5rem;">
+                            可用容量: ${reviewer.available_capacity} 个任务
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = html;
+        }
+
+        // 加载最近任务
+        async function loadRecentTasks() {
+            try {
+                const data = await apiRequest('/review/tasks?pageSize=5');
+
+                if (data && data.success) {
+                    renderRecentTasks(data.data);
+                } else {
+                    document.getElementById('recentTasks').innerHTML = '<div>暂无任务数据</div>';
+                }
+            } catch (error) {
+                console.error('Error loading recent tasks:', error);
+                document.getElementById('recentTasks').innerHTML = '<div style="color: red;">加载任务失败</div>';
+            }
+        }
+
+        // 渲染最近任务
+        function renderRecentTasks(tasks) {
+            const container = document.getElementById('recentTasks');
+
+            if (!tasks || tasks.length === 0) {
+                container.innerHTML = '<p>暂无任务</p>';
+                return;
+            }
+
+            const html = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>公司名称</th>
+                            <th>商家类型</th>
+                            <th>状态</th>
+                            <th>分配给</th>
+                            <th>创建时间</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tasks.map(task => `
+                            <tr>
+                                <td>${task.company_name || '未知'}</td>
+                                <td>${task.merchant_type || '未知'}</td>
+                                <td><span class="status-badge status-${task.status}">${getStatusText(task.status)}</span></td>
+                                <td>${task.assigned_to || '未分配'}</td>
+                                <td>${new Date(task.created_at).toLocaleString()}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        // 获取状态文本
+        function getStatusText(status) {
+            const statusMap = {
+                'pending': '待处理',
+                'in_progress': '处理中',
+                'completed': '已完成'
+            };
+            return statusMap[status] || status;
+        }
+
+        // 刷新数据
+        function refreshData() {
+            loadDashboard();
+            loadRecentTasks();
+        }
+
+        // 退出登录
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = 'login.html';
+        }
+
+        // 页面加载时获取数据
+        loadDashboard();
+        loadRecentTasks();
+    </script>
+</body>
+</html>

@@ -21,15 +21,39 @@ function sanitizeString(str) {
 
 /**
  * 验证数据库查询结果
- * @param {object} result 
+ * @param {object} result
  * @returns {boolean}
  */
 function isValidQueryResult(result) {
   return result && typeof result === 'object' && result.hasOwnProperty('success');
 }
 
+/**
+ * 验证邮箱格式
+ * @param {string} email
+ * @returns {boolean}
+ */
+function isValidEmail(email) {
+  if (!email || typeof email !== 'string') return false;
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+/**
+ * 验证手机号格式
+ * @param {string} phone
+ * @returns {boolean}
+ */
+function isValidPhone(phone) {
+  if (!phone || typeof phone !== 'string') return false;
+  const phoneRegex = /^1[3-9]\d{9}$/;
+  return phoneRegex.test(phone);
+}
+
 module.exports = {
   isValidUserId,
   sanitizeString,
-  isValidQueryResult
+  isValidQueryResult,
+  isValidEmail,
+  isValidPhone
 };
