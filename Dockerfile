@@ -4,6 +4,9 @@ FROM downloads.unstructured.io/unstructured-io/unstructured:latest
 # 设置工作目录
 WORKDIR /app
 
+# 切换到root用户安装软件包
+USER root
+
 # 安装Node.js和npm (用于前端和后端) - 适配Wolfi Linux
 RUN apk update && apk add \
     curl \
@@ -11,6 +14,9 @@ RUN apk update && apk add \
     npm \
     bash \
     && rm -rf /var/cache/apk/*
+
+# 切换回原用户
+USER notebook-user
 
 # 安装Python依赖
 COPY document_service/requirements.txt /app/document_service/
