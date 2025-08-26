@@ -151,10 +151,38 @@ const ReviewManagementPage = () => {
    */
   const handleViewDetail = async (task) => {
     try {
-      console.log('🔍 查看任务详情:', task);
+      console.log('🔍 查看任务详情:', task, '当前用户角色:', user?.role);
 
-      // 使用审核员专用API，通过任务ID获取申请详情
-      const response = await apiRequest(`/reviewer/task/${task.task_id}/application`);
+      let response;
+
+      // 根据用户角色调用不同的API
+      if (user?.role === 'admin') {
+        // 管理员通过申请ID直接查看
+        console.log('🔍 管理员查看申请详情，申请ID:', task.user_id);
+
+        // 先获取申请ID（如果task中没有application_id）
+        if (task.application_id) {
+          response = await apiRequest(`/admin/application/${task.application_id}`);
+        } else {
+          // 通过user_id查找申请记录
+          const applicationsResponse = await apiRequest('/admin/applications');
+          if (applicationsResponse?.success) {
+            const application = applicationsResponse.data.find(app => app.user_id === task.user_id);
+            if (application) {
+              response = await apiRequest(`/admin/application/${application.id}`);
+            } else {
+              throw new Error('未找到对应的申请记录');
+            }
+          } else {
+            throw new Error('获取申请列表失败');
+          }
+        }
+      } else {
+        // 审核员通过任务ID获取申请详情
+        console.log('🔍 审核员查看任务详情，任务ID:', task.task_id);
+        response = await apiRequest(`/reviewer/task/${task.task_id}/application`);
+      }
+
       if (response && response.success) {
         setSelectedTask({
           ...task,
