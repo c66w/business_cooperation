@@ -21,11 +21,39 @@ const documentRouter = require('./routes/document');
 const app = express();
 const PORT = process.env.BACKEND_PORT || 3001;
 
-// 中间件 - 更宽松的CORS配置
+// CORS配置 - 支持生产环境部署
+const corsOptions = {
+  origin: function (origin, callback) {
+    // 允许的源列表
+    const allowedOrigins = [
+      'http://localhost:6415',  // 开发环境前端
+      'http://localhost:3000',  // 备用开发端口
+      'http://127.0.0.1:6415',  // 本地IP
+      'http://127.0.0.1:3000'   // 备用本地IP
+    ];
+
+    // 生产环境：允许同源请求（前端和后端在同一服务器）
+    if (!origin || process.env.NODE_ENV === 'production') {
+      return callback(null, true);
+    }
+
+    // 开发环境：检查允许的源
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
+};
+
+app.use(cors(corsOptions));
+
+// 额外的CORS头设置（兼容性）
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Allow-Credentials', 'true');
 
   // 处理预检请求
@@ -35,8 +63,6 @@ app.use((req, res, next) => {
     next();
   }
 });
-
-app.use(cors());
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
@@ -666,7 +692,20 @@ app.get('/api/review/detail/:userId', async (req, res) => {
   }
 });
 
+// 生产环境：服务前端静态文件
+if (process.env.NODE_ENV === 'production') {
+  // 服务前端构建文件
+  app.use(express.static(path.join(__dirname, '../frontend/build')));
 
+  // 处理React Router的路由，返回index.html
+  app.get('*', (req, res) => {
+    // 排除API路由
+    if (req.path.startsWith('/api/')) {
+      return res.status(404).json({ message: 'API endpoint not found' });
+    }
+    res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
+  });
+}
 
 // 启动服务器
 app.listen(PORT, '0.0.0.0', async () => {

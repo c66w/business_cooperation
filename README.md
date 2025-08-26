@@ -268,14 +268,68 @@ cd backend
 npm start
 ```
 
-### Docker部署（可选）
+## 🐳 Docker部署
+
+### 快速部署
+
+使用提供的脚本一键构建和运行：
 
 ```bash
-# 构建镜像
-docker build -t business-cooperation .
+# 一键构建和启动
+./build-and-run.sh
+```
 
-# 运行容器
-docker run -p 3001:3001 business-cooperation
+### 手动部署
+
+```bash
+# 1. 构建镜像
+docker-compose build
+
+# 2. 启动服务
+docker-compose up -d
+
+# 3. 查看日志
+docker-compose logs -f
+
+# 4. 停止服务
+docker-compose down
+```
+
+### 生产环境部署
+
+在Linux服务器上部署时：
+
+```bash
+# 1. 克隆项目
+git clone https://github.com/c66w/business_cooperation.git
+cd business_cooperation
+
+# 2. 构建和启动
+./build-and-run.sh
+
+# 3. 访问应用
+# 前端页面: http://your-server-ip:3001
+# API接口: http://your-server-ip:3001/api
+```
+
+### 端口说明
+
+- **3001**: 主服务端口（前端页面 + 后端API）
+- **8000**: Python微服务端口（可选，用于直接访问文档处理API）
+
+### 环境变量配置
+
+生产环境部署时，可以通过环境变量配置：
+
+```bash
+# docker-compose.override.yml
+version: '3.8'
+services:
+  business-cooperation:
+    environment:
+      - NODE_ENV=production
+      - BACKEND_PORT=3001
+      - PYTHON_SERVICE_PORT=8000
 ```
 
 ## 🤝 贡献

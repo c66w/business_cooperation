@@ -17,8 +17,23 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [documents, setDocuments] = useState([]);
 
-  // 尝试直接连接，如果代理失败的话
-  const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:3001/api' : '/api';
+  // 智能API地址配置
+  const getApiBaseUrl = () => {
+    // 如果设置了环境变量，优先使用
+    if (process.env.REACT_APP_API_URL) {
+      return process.env.REACT_APP_API_URL;
+    }
+
+    // 生产环境使用相对路径
+    if (process.env.NODE_ENV === 'production') {
+      return '/api';
+    }
+
+    // 开发环境使用localhost
+    return 'http://localhost:3001/api';
+  };
+
+  const API_BASE = getApiBaseUrl();
 
   console.log('AuthContext initialized with API_BASE:', API_BASE);
 

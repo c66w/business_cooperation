@@ -238,7 +238,17 @@
     </div>
 
     <script>
-        const API_BASE = 'http://localhost:3001/api';
+        // 智能API地址配置
+        const getApiBaseUrl = () => {
+            // 生产环境使用相对路径
+            if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                return '/api';
+            }
+            // 开发环境使用localhost
+            return 'http://localhost:3001/api';
+        };
+
+        const API_BASE = getApiBaseUrl();
         let token = localStorage.getItem('token');
         let user = JSON.parse(localStorage.getItem('user') || '{}');
 

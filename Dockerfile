@@ -42,11 +42,9 @@ cd /app/document_service && python start_service.py &\n\
 # 等待Python服务启动\n\
 sleep 5\n\
 \n\
-# 启动后端服务\n\
-cd /app/backend && node server.js &\n\
-\n\
-# 启动前端服务\n\
-cd /app/frontend && npm start\n\
+# 在生产环境中，后端服务器会同时服务API和前端静态文件\n\
+# 启动后端服务（包含前端静态文件服务）\n\
+cd /app/backend && node server.js\n\
 ' > start.sh && chmod +x start.sh
 
 # 暴露端口
@@ -54,6 +52,7 @@ EXPOSE 6415 3001 8000
 
 # 设置环境变量
 ENV NODE_ENV=production
+ENV HOST=0.0.0.0
 ENV FRONTEND_PORT=6415
 ENV BACKEND_PORT=3001
 ENV PYTHON_SERVICE_PORT=8000

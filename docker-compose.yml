@@ -4,11 +4,11 @@ services:
   business-cooperation:
     build: .
     ports:
-      - "6415:6415"  # 前端端口
-      - "3001:3001"  # 后端API端口
-      - "8000:8000"  # Python服务端口
+      - "3001:3001"  # 主服务端口（后端API + 前端静态文件）
+      - "8000:8000"  # Python服务端口（可选，用于直接访问Python API）
     environment:
       - NODE_ENV=production
+      - HOST=0.0.0.0
       - FRONTEND_PORT=6415
       - BACKEND_PORT=3001
       - PYTHON_SERVICE_PORT=8000
@@ -19,7 +19,7 @@ services:
       - ./tmp:/tmp  # 临时文件目录
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6415"]
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/test/connection"]
       interval: 30s
       timeout: 10s
       retries: 3
