@@ -8,7 +8,7 @@ WORKDIR /app
 USER root
 
 # 安装Node.js和npm (用于前端和后端) - 适配Wolfi Linux
-RUN apk update && apk add \
+RUN apk add \
     curl \
     nodejs \
     npm \
