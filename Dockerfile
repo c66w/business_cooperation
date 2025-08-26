@@ -4,13 +4,13 @@ FROM downloads.unstructured.io/unstructured-io/unstructured:latest
 # 设置工作目录
 WORKDIR /app
 
-# 安装Node.js和npm (用于前端和后端)
-RUN apt-get update && apt-get install -y \
+# 安装Node.js和npm (用于前端和后端) - 适配Wolfi Linux
+RUN apk update && apk add \
     curl \
-    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-    && apt-get install -y nodejs \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    nodejs \
+    npm \
+    bash \
+    && rm -rf /var/cache/apk/*
 
 # 安装Python依赖
 COPY document_service/requirements.txt /app/document_service/
