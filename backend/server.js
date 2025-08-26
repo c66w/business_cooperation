@@ -24,26 +24,16 @@ const PORT = process.env.BACKEND_PORT || 3001;
 // CORS配置 - 支持生产环境部署
 const corsOptions = {
   origin: function (origin, callback) {
-    // 允许的源列表
-    const allowedOrigins = [
-      'http://localhost:6415',  // 开发环境前端
-      'http://localhost:3000',  // 备用开发端口
-      'http://127.0.0.1:6415',  // 本地IP
-      'http://127.0.0.1:3000'   // 备用本地IP
-    ];
-
-    // 生产环境：允许同源请求（前端和后端在同一服务器）
-    if (!origin || process.env.NODE_ENV === 'production') {
+    // 允许所有localhost和127.0.0.1的请求，以及生产环境的同源请求
+    if (!origin ||
+        origin.startsWith('http://localhost:') ||
+        origin.startsWith('http://127.0.0.1:') ||
+        process.env.NODE_ENV === 'production') {
       return callback(null, true);
     }
 
-    // 开发环境：检查允许的源
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.warn(`CORS blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
+    console.warn(`CORS blocked origin: ${origin}`);
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
