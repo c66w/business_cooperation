@@ -158,15 +158,26 @@ class ApplicationService {
     );
     console.log('🔍 检查business_cooperation表中的user_id:', bcCheck);
 
-    // 检查表结构和外键约束
-    const tableInfo = await transaction.execute('PRAGMA table_info(merchant_details)');
-    console.log('🔍 merchant_details表结构:', tableInfo);
+    // 检查表结构和外键约束 - 使用全局execute而不是事务execute
+    const { execute } = require('../config/database-sqlite');
 
-    const foreignKeys = await transaction.execute('PRAGMA foreign_key_list(merchant_details)');
-    console.log('🔍 merchant_details外键约束:', foreignKeys);
+    try {
+      const tableInfo = await execute('PRAGMA table_info(merchant_details)');
+      console.log('🔍 merchant_details表结构:', JSON.stringify(tableInfo, null, 2));
 
-    const bcTableInfo = await transaction.execute('PRAGMA table_info(business_cooperation)');
-    console.log('🔍 business_cooperation表结构:', bcTableInfo);
+      const foreignKeys = await execute('PRAGMA foreign_key_list(merchant_details)');
+      console.log('🔍 merchant_details外键约束:', JSON.stringify(foreignKeys, null, 2));
+
+      const bcTableInfo = await execute('PRAGMA table_info(business_cooperation)');
+      console.log('🔍 business_cooperation表结构:', JSON.stringify(bcTableInfo, null, 2));
+
+      // 检查外键约束是否启用
+      const fkStatus = await execute('PRAGMA foreign_keys');
+      console.log('🔍 外键约束状态:', fkStatus);
+
+    } catch (pragmaError) {
+      console.error('❌ PRAGMA查询失败:', pragmaError);
+    }
 
     for (const [fieldName, fieldValue] of Object.entries(dynamicFields)) {
       const sql = `
