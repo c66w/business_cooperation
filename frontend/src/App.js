@@ -78,21 +78,11 @@ function AppContent() {
       );
     }
 
-    // 管理员可以看到所有页面
+    // 管理员只能看到审核管理页面
     if (user.role === 'admin') {
       items.push(
         {
           key: '/',
-          icon: <HomeOutlined />,
-          label: '商家查看'
-        },
-        {
-          key: '/apply',
-          icon: <FormOutlined />,
-          label: '商家申请'
-        },
-        {
-          key: '/review',
           icon: <AuditOutlined />,
           label: '审核管理'
         }
@@ -214,7 +204,9 @@ function AppContent() {
                   <ReviewPage />
                 </ProtectedRoute>
               ) : (
-                <ReviewPage />
+                <ProtectedRoute requiredRole="admin">
+                  <ReviewManagementPage />
+                </ProtectedRoute>
               )
             }
           />
@@ -229,9 +221,15 @@ function AppContent() {
           <Route
             path="/review"
             element={
-              <ProtectedRoute requiredRole="reviewer">
-                <ReviewManagementPage />
-              </ProtectedRoute>
+              user.role === 'admin' ? (
+                <ProtectedRoute requiredRole="admin">
+                  <ReviewManagementPage />
+                </ProtectedRoute>
+              ) : (
+                <ProtectedRoute requiredRole="reviewer">
+                  <ReviewManagementPage />
+                </ProtectedRoute>
+              )
             }
           />
           <Route

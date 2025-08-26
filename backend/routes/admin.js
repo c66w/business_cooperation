@@ -87,11 +87,11 @@ router.get('/applications', authenticateToken, requireAdmin, async (req, res) =>
   try {
     const { execute } = require('../config/database-sqlite');
     const reviewService = new ReviewService({ execute });
-    
+
     const applications = await reviewService.getApplications();
-    
+
     console.log(`✅ 管理员查询申请列表成功: ${applications.length} 条记录`);
-    
+
     res.json({
       success: true,
       data: applications
@@ -102,6 +102,81 @@ router.get('/applications', authenticateToken, requireAdmin, async (req, res) =>
     res.status(500).json({
       success: false,
       message: '获取申请列表失败'
+    });
+  }
+});
+
+/**
+ * 获取申请详情 - 管理员专用（可查看任意申请）
+ */
+router.get('/application/:applicationId', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { applicationId } = req.params;
+    const { execute } = require('../config/database-sqlite');
+
+    console.log('🔍 管理员查询申请详情:', {
+      applicationId,
+      adminId: req.user.userId,
+      adminName: req.user.username
+    });
+
+    // 获取申请基础信息
+    const [application] = await execute(
+      'SELECT * FROM business_cooperation WHERE id = ?',
+      [applicationId]
+    );
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: '申请不存在'
+      });
+    }
+
+    // 管理员可以查看任意申请，无需权限检查
+
+    // 获取动态字段
+    const dynamicFields = await execute(
+      'SELECT * FROM merchant_details WHERE user_id = ? ORDER BY created_at',
+      [application.user_id]
+    );
+
+    // 获取文档
+    const documents = await execute(
+      'SELECT * FROM business_qualification_document WHERE user_id = ? ORDER BY upload_time',
+      [application.user_id]
+    );
+
+    // 获取审核历史
+    const history = await execute(
+      'SELECT * FROM workflow_history WHERE user_id = ? ORDER BY created_at DESC',
+      [application.user_id]
+    );
+
+    // 获取任务信息
+    const [task] = await execute(
+      'SELECT * FROM workflow_tasks WHERE user_id = ?',
+      [application.user_id]
+    );
+
+    console.log(`✅ 管理员查询申请详情成功: applicationId=${applicationId}, userId=${application.user_id}`);
+
+    res.json({
+      success: true,
+      data: {
+        ...application,
+        dynamic_fields: dynamicFields,
+        documents: documents,
+        history: history,
+        task: task
+      }
+    });
+
+  } catch (error) {
+    console.error('管理员获取申请详情失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取申请详情失败'
     });
   }
 });

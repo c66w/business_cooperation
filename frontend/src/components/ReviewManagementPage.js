@@ -151,19 +151,24 @@ const ReviewManagementPage = () => {
    */
   const handleViewDetail = async (task) => {
     try {
-      const response = await apiRequest(`/merchant/application/${task.user_id}`);
+      console.log('🔍 查看任务详情:', task);
+
+      // 使用审核员专用API，通过任务ID获取申请详情
+      const response = await apiRequest(`/reviewer/task/${task.task_id}/application`);
       if (response && response.success) {
         setSelectedTask({
           ...task,
           ...response.data
         });
         setDetailModalVisible(true);
+        console.log('✅ 获取任务详情成功:', response.data);
       } else {
         message.error('获取详情失败');
+        console.error('❌ 获取详情失败:', response);
       }
     } catch (error) {
       message.error('获取详情失败');
-      console.error('Failed to fetch detail:', error);
+      console.error('❌ 获取详情异常:', error);
     }
   };
 

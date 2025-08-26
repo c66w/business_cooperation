@@ -255,6 +255,183 @@ router.post('/submit-review/:taskId', authenticateToken, requireReviewer, async 
 });
 
 /**
+ * 获取申请详情 - 审核员专用
+ */
+router.get('/application/:applicationId', authenticateToken, requireReviewer, async (req, res) => {
+  try {
+    const { applicationId } = req.params;
+    const { execute } = require('../config/database-sqlite');
+
+    console.log('🔍 审核员查询申请详情:', {
+      applicationId,
+      reviewerId: req.user.userId,
+      reviewerName: req.user.username
+    });
+
+    // 获取申请基础信息
+    const [application] = await execute(
+      'SELECT * FROM business_cooperation WHERE id = ?',
+      [applicationId]
+    );
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: '申请不存在'
+      });
+    }
+
+    // 检查审核员权限：必须是分配给自己的任务或管理员
+    if (req.user.role === 'reviewer') {
+      const [task] = await execute(
+        'SELECT * FROM workflow_tasks WHERE user_id = ? AND assigned_to = ?',
+        [application.user_id, req.user.userId]
+      );
+
+      if (!task) {
+        console.log('❌ 审核员权限检查失败:', {
+          applicationUserId: application.user_id,
+          reviewerId: req.user.userId
+        });
+        return res.status(403).json({
+          success: false,
+          message: '此申请未分配给您，无权查看'
+        });
+      }
+    }
+
+    // 获取动态字段
+    const dynamicFields = await execute(
+      'SELECT * FROM merchant_details WHERE user_id = ? ORDER BY created_at',
+      [application.user_id]
+    );
+
+    // 获取文档
+    const documents = await execute(
+      'SELECT * FROM business_qualification_document WHERE user_id = ? ORDER BY upload_time',
+      [application.user_id]
+    );
+
+    // 获取审核历史
+    const history = await execute(
+      'SELECT * FROM workflow_history WHERE user_id = ? ORDER BY created_at DESC',
+      [application.user_id]
+    );
+
+    // 获取任务信息
+    const [task] = await execute(
+      'SELECT * FROM workflow_tasks WHERE user_id = ?',
+      [application.user_id]
+    );
+
+    console.log(`✅ 审核员查询申请详情成功: applicationId=${applicationId}, userId=${application.user_id}`);
+
+    res.json({
+      success: true,
+      data: {
+        ...application,
+        dynamic_fields: dynamicFields,
+        documents: documents,
+        history: history,
+        task: task
+      }
+    });
+
+  } catch (error) {
+    console.error('审核员获取申请详情失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取申请详情失败'
+    });
+  }
+});
+
+/**
+ * 获取任务对应的申请详情 - 通过taskId
+ */
+router.get('/task/:taskId/application', authenticateToken, requireReviewer, async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { execute } = require('../config/database-sqlite');
+
+    console.log('🔍 审核员通过任务ID查询申请详情:', {
+      taskId,
+      reviewerId: req.user.userId
+    });
+
+    // 获取任务信息并检查权限
+    const [task] = await execute(
+      'SELECT * FROM workflow_tasks WHERE task_id = ?',
+      [taskId]
+    );
+
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        message: '任务不存在'
+      });
+    }
+
+    // 检查任务是否分配给当前审核员
+    if (req.user.role === 'reviewer' && task.assigned_to !== req.user.userId) {
+      return res.status(403).json({
+        success: false,
+        message: '此任务未分配给您，无权查看'
+      });
+    }
+
+    // 获取申请信息
+    const [application] = await execute(
+      'SELECT * FROM business_cooperation WHERE user_id = ?',
+      [task.user_id]
+    );
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: '申请信息不存在'
+      });
+    }
+
+    // 获取完整申请详情
+    const dynamicFields = await execute(
+      'SELECT * FROM merchant_details WHERE user_id = ? ORDER BY created_at',
+      [application.user_id]
+    );
+
+    const documents = await execute(
+      'SELECT * FROM business_qualification_document WHERE user_id = ? ORDER BY upload_time',
+      [application.user_id]
+    );
+
+    const history = await execute(
+      'SELECT * FROM workflow_history WHERE user_id = ? ORDER BY created_at DESC',
+      [application.user_id]
+    );
+
+    console.log(`✅ 审核员通过任务查询申请详情成功: taskId=${taskId}, applicationId=${application.id}`);
+
+    res.json({
+      success: true,
+      data: {
+        ...application,
+        dynamic_fields: dynamicFields,
+        documents: documents,
+        history: history,
+        task: task
+      }
+    });
+
+  } catch (error) {
+    console.error('审核员通过任务获取申请详情失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取申请详情失败'
+    });
+  }
+});
+
+/**
  * 获取审核历史
  */
 router.get('/review-history', authenticateToken, requireReviewer, async (req, res) => {
