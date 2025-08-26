@@ -44,17 +44,19 @@ RUN npm install && npm run build
 
 # 创建启动脚本 (保持root权限)
 WORKDIR /app
-RUN echo '#!/bin/bash\n\
-# 启动Python服务\n\
-cd /app/document_service && python start_service.py &\n\
-\n\
-# 等待Python服务启动\n\
-sleep 5\n\
-\n\
-# 在生产环境中，后端服务器会同时服务API和前端静态文件\n\
-# 启动后端服务（包含前端静态文件服务）\n\
-cd /app/backend && node server.js\n\
-' > start.sh && chmod +x start.sh
+RUN echo '#!/bin/bash' > start.sh && \
+    echo '# 启动Python服务' >> start.sh && \
+    echo 'cd /app/document_service && python start_service.py &' >> start.sh && \
+    echo '' >> start.sh && \
+    echo '# 等待Python服务启动' >> start.sh && \
+    echo 'sleep 5' >> start.sh && \
+    echo '' >> start.sh && \
+    echo '# 在生产环境中，后端服务器会同时服务API和前端静态文件' >> start.sh && \
+    echo '# 启动后端服务（包含前端静态文件服务）' >> start.sh && \
+    echo 'cd /app/backend && node server.js' >> start.sh && \
+    chmod +x start.sh && \
+    ls -la start.sh && \
+    cat start.sh
 
 # 切换回notebook-user
 USER notebook-user
