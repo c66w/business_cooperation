@@ -259,7 +259,7 @@ router.post('/assign', authenticateToken, requireAdmin, async (req, res) => {
 
     // 检查任务是否存在
     const [task] = await execute(`
-      SELECT task_id, user_id, assigned_to, status
+      SELECT task_id, user_id, assigned_to, status, application_id
       FROM workflow_tasks
       WHERE task_id = ?
     `, [taskId]);
@@ -283,10 +283,10 @@ router.post('/assign', authenticateToken, requireAdmin, async (req, res) => {
     // 记录操作历史
     await execute(`
       INSERT INTO workflow_history (
-        user_id, task_id, action, actor_type, actor_id, actor_name,
+        user_id, application_id, task_id, action, actor_type, actor_id, actor_name,
         from_status, to_status, comment, created_at
-      ) VALUES (?, ?, 'assigned', 'admin', ?, ?, ?, ?, '管理员分配任务', CURRENT_TIMESTAMP)
-    `, [task.user_id, taskId, req.user.userId, req.user.name, oldAssignee, reviewerId]);
+      ) VALUES (?, ?, ?, 'assigned', 'admin', ?, ?, ?, ?, '管理员分配任务', CURRENT_TIMESTAMP)
+    `, [task.user_id, task.application_id, taskId, req.user.userId, req.user.name, oldAssignee, reviewerId]);
 
     console.log(`✅ 任务分配成功: ${taskId} (${oldAssignee} -> ${reviewerId})`);
 
@@ -352,10 +352,10 @@ router.post('/assign-batch', authenticateToken, requireAdmin, async (req, res) =
         // 记录操作历史
         await execute(`
           INSERT INTO workflow_history (
-            user_id, task_id, action, actor_type, actor_id, actor_name,
+            user_id, application_id, task_id, action, actor_type, actor_id, actor_name,
             from_status, to_status, comment, created_at
-          ) VALUES (?, ?, 'assigned', 'admin', ?, ?, ?, ?, '管理员批量分配任务', CURRENT_TIMESTAMP)
-        `, [task.user_id, taskId, req.user.userId, req.user.name, oldAssignee, reviewerId]);
+          ) VALUES (?, ?, ?, 'assigned', 'admin', ?, ?, ?, ?, '管理员批量分配任务', CURRENT_TIMESTAMP)
+        `, [task.user_id, task.application_id, taskId, req.user.userId, req.user.name, oldAssignee, reviewerId]);
 
         results.push({
           taskId,

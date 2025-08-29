@@ -137,8 +137,8 @@ router.get('/application/:applicationId', authenticateToken, requireAdmin, async
 
     // 获取动态字段
     const dynamicFields = await execute(
-      'SELECT * FROM merchant_details WHERE user_id = ? ORDER BY created_at',
-      [application.user_id]
+      'SELECT * FROM merchant_details WHERE application_id = ? ORDER BY created_at',
+      [application.application_id]
     );
 
     // 获取文档

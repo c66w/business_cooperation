@@ -77,3 +77,9 @@ venv.bak/
 *.tmp
 *.temp
 node_modules
+
+# Upload and temp directories
+backend/uploads/
+backend/temp/
+uploads/
+temp/

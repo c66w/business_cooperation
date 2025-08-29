@@ -220,7 +220,23 @@ const DocumentUpload = ({
             renderItem={file => (
               <List.Item
                 actions={[
-                  <Button type="link" size="small" icon={<EyeOutlined />}>
+                  <Button
+                    type="link"
+                    size="small"
+                    icon={<EyeOutlined />}
+                    onClick={() => {
+                      // 尝试多种可能的文件URL字段
+                      const fileUrl = file.url || file.oss_url || file.file_url || file.response?.oss_url;
+
+                      if (fileUrl) {
+                        console.log('🔍 打开文件:', fileUrl);
+                        window.open(fileUrl, '_blank');
+                      } else {
+                        console.error('❌ 文件URL不存在:', file);
+                        message.error('文件URL不存在，无法查看');
+                      }
+                    }}
+                  >
                     查看
                   </Button>
                 ]}

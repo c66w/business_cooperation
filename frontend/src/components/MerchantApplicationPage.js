@@ -4,8 +4,9 @@ import { CheckCircleOutlined, HomeOutlined, RobotOutlined } from '@ant-design/ic
 import { useNavigate } from 'react-router-dom';
 import DynamicForm from './DynamicForm';
 import DocumentUpload from './DocumentUpload';
+import { useAuth } from '../contexts/AuthContext';
 
-import axios from 'axios';
+import logger from '../utils/logger';
 
 const { Header, Content } = Layout;
 
@@ -23,12 +24,14 @@ const getTypeDisplayName = (type) => {
 
 const MerchantApplicationPage = () => {
   const navigate = useNavigate();
+  const { apiRequest } = useAuth();
   const [submitted, setSubmitted] = useState(false);
   const [submissionResult, setSubmissionResult] = useState(null);
   const [smartSuggestions, setSmartSuggestions] = useState([]);
   const [selectedMerchantType, setSelectedMerchantType] = useState('');
   const [formRef, setFormRef] = useState(null);
   const [sharedFileList, setSharedFileList] = useState([]); // 共享的文件列表
+  const [autoFillData, setAutoFillData] = useState(null); // 自动填充数据
 
 
 
@@ -36,7 +39,7 @@ const MerchantApplicationPage = () => {
    * 处理文档上传完成
    */
   const handleDocumentUploaded = (uploadedFiles) => {
-    console.log('文档上传完成:', uploadedFiles);
+    logger.component('MerchantApplicationPage', '文档上传完成', uploadedFiles);
     // 将上传的文件添加到共享文件列表
     const newFiles = uploadedFiles.map(file => ({
       uid: file.id || `${Date.now()}-${Math.random()}`,
@@ -56,6 +59,12 @@ const MerchantApplicationPage = () => {
    */
   const handleRequestSmartFill = async (stage) => {
     try {
+      console.log('🔍 前端开始智能分析请求');
+      console.log('📄 sharedFileList:', sharedFileList);
+      console.log('📄 sharedFileList类型:', typeof sharedFileList);
+      console.log('📄 sharedFileList是否为数组:', Array.isArray(sharedFileList));
+      console.log('📄 sharedFileList长度:', sharedFileList?.length);
+
       if (sharedFileList.length === 0) {
         message.warning('请先上传文档再进行智能分析');
         return;
@@ -64,41 +73,103 @@ const MerchantApplicationPage = () => {
       message.loading(`正在进行${stage === 'basic' ? '基础信息' : '详细信息'}智能分析...`, 0);
 
       // 准备请求数据
-      const requestData = {
-        documents: sharedFileList.map(file => ({
+      const documentsData = sharedFileList.map(file => {
+        console.log('🔍 处理文件:', file);
+        return {
           name: file.name,
           url: file.url,
           type: file.type,
           size: file.size
-        })),
-        currentData: formRef?.getFieldsValue() || {},
+        };
+      });
+
+      const formData = formRef?.getFieldsValue() || {};
+      console.log('📊 表单数据:', formData);
+
+      const requestData = {
+        documents: documentsData,
+        currentData: formData,
         merchantType: selectedMerchantType
       };
 
+      console.log('📤 完整请求数据:', JSON.stringify(requestData, null, 2));
+
       // 调用对应阶段的LLM分析接口
       const apiEndpoint = stage === 'basic'
-        ? '/api/llm/analyze/basic'
-        : '/api/llm/analyze/detailed';
+        ? '/llm/analyze/basic'
+        : '/llm/analyze/detailed';
 
-      console.log(`调用${stage}阶段LLM分析接口:`, apiEndpoint, requestData);
+      logger.api('POST', apiEndpoint, requestData);
 
-      const response = await fetch(apiEndpoint, {
+      console.log('🔄 发送请求到:', apiEndpoint);
+
+      // 使用统一的apiRequest方法
+      const result = await apiRequest(apiEndpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(requestData)
       });
 
-      const result = await response.json();
+      console.log('📥 响应结果:', result);
       message.destroy();
 
       if (result.success) {
+        console.log('✅ 智能分析成功');
+        console.log('📊 分析结果:', result.data);
+        console.log('💡 建议数据:', result.data.suggestions);
+        console.log('💡 建议类型:', typeof result.data.suggestions);
+        console.log('💡 建议是否为数组:', Array.isArray(result.data.suggestions));
+
+        // 安全地处理建议数据
+        let suggestions = result.data.suggestions;
+        if (!Array.isArray(suggestions)) {
+          console.warn('⚠️ suggestions不是数组，尝试修复:', suggestions);
+          if (suggestions && typeof suggestions === 'object') {
+            // 如果是对象，尝试提取数组
+            suggestions = Object.values(suggestions);
+          } else {
+            // 如果不是数组也不是对象，创建空数组
+            suggestions = [];
+          }
+        }
+
+        console.log('🔧 处理后的建议数据:', suggestions);
+
+        // 处理字段自动填充
+        const fields = result.data.fields || {};
+        if (Object.keys(fields).length > 0) {
+          console.log('🔧 开始自动填充字段:', fields);
+
+          // 过滤掉null和undefined的字段
+          const validFields = {};
+          Object.keys(fields).forEach(key => {
+            if (fields[key] !== null && fields[key] !== undefined && fields[key] !== '') {
+              validFields[key] = fields[key];
+            }
+          });
+
+          if (Object.keys(validFields).length > 0) {
+            // 触发表单字段更新事件
+            setAutoFillData(validFields);
+            console.log('✅ 字段自动填充完成:', validFields);
+            message.success(`${stage === 'basic' ? '基础信息' : '详细信息'}字段自动填充完成`);
+          }
+        }
+
         // 合并新的建议到现有建议中
-        const newSuggestions = result.data.suggestions.map(s => ({
-          ...s,
-          stage: stage
-        }));
+        const newSuggestions = suggestions.map(s => {
+          // 如果s是字符串，转换为对象
+          if (typeof s === 'string') {
+            return {
+              text: s,
+              stage: stage
+            };
+          }
+          // 如果s已经是对象，添加stage属性
+          return {
+            ...s,
+            stage: stage
+          };
+        });
 
         setSmartSuggestions(prev => {
           // 移除同一阶段的旧建议，添加新建议
@@ -106,7 +177,7 @@ const MerchantApplicationPage = () => {
           return [...filteredPrev, ...newSuggestions];
         });
 
-        console.log(`${stage}阶段分析完成:`, {
+        logger.component('MerchantApplicationPage', `${stage}阶段分析完成`, {
           suggestions: newSuggestions,
           modelVersion: result.data.model_version,
           analysisTime: result.data.analysis_time
@@ -142,29 +213,29 @@ const MerchantApplicationPage = () => {
    */
   const handleFormSubmit = async (formData) => {
     try {
-      console.log('📤 MerchantApplicationPage: 开始提交申请...', formData);
+      logger.form('MerchantApplicationPage', '开始提交申请', formData);
 
-      // 发送表单数据到后端
-      const response = await axios.post('/api/merchant/apply', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        },
-        timeout: 30000 // 30秒超时
+      // 发送表单数据到后端 - 使用apiRequest确保发送token
+      const response = await apiRequest('/merchant/apply', {
+        method: 'POST',
+        body: formData
+        // 注意：FormData不需要设置Content-Type，浏览器会自动设置
       });
 
-      if (response.data.success) {
+      if (response && response.success) {
         setSubmissionResult({
           success: true,
-          userId: response.data.data.userId,
-          message: response.data.message,
-          workflowId: response.data.data.workflowId
+          userId: response.data.userId,
+          applicationId: response.data.applicationId,
+          message: response.message,
+          workflowId: response.data.taskId
         });
         setSubmitted(true);
-        
+
         // 显示成功消息
         message.success('申请提交成功！我们将在72小时内完成审核。');
       } else {
-        throw new Error(response.data.message || '提交失败');
+        throw new Error(response?.message || '提交失败');
       }
     } catch (error) {
       console.error('Form submission error:', error);
@@ -247,7 +318,7 @@ const MerchantApplicationPage = () => {
                         borderRadius: '6px',
                         marginLeft: '8px'
                       }}>
-                        {submissionResult.userId}
+                        {submissionResult.applicationId || submissionResult.userId}
                       </span>
                     </p>
                     <p style={{ marginBottom: '12px' }}>
@@ -595,6 +666,8 @@ const MerchantApplicationPage = () => {
                   onFileListChange={setSharedFileList}
                   smartSuggestions={smartSuggestions}
                   onRequestSmartFill={handleRequestSmartFill}
+                  autoFillData={autoFillData}
+                  onAutoFillComplete={() => setAutoFillData(null)}
                 />
               </div>
             </Col>

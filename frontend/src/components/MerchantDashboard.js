@@ -18,7 +18,6 @@ import {
   message
 } from 'antd';
 import {
-  FileTextOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
   ExclamationCircleOutlined,
@@ -27,26 +26,27 @@ import {
 } from '@ant-design/icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import logger from '../utils/logger';
 
 const { Title, Text } = Typography;
 
 
 
 const MerchantDashboard = () => {
-  const { user, apiRequest, documents, fetchDocuments, removeDocument } = useAuth();
+  const { user, apiRequest } = useAuth();
   const navigate = useNavigate();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // 获取申请列表
   const fetchApplications = async () => {
-    console.log('🔍 开始获取申请列表...');
+    logger.component('MerchantDashboard', '开始获取申请列表');
     try {
-      console.log('🔍 发送请求到: /merchant/my-applications');
+      logger.api('GET', '/merchant/my-applications');
       const response = await apiRequest('/merchant/my-applications');
-      console.log('🔍 申请列表响应:', response);
+      logger.api('GET', '/merchant/my-applications', response);
       if (response && response.success) {
-        console.log('🔍 设置申请数据:', response.data?.length, '条记录');
+        logger.component('MerchantDashboard', '设置申请数据', `${response.data?.length}条记录`);
         setApplications(response.data || []);
       }
     } catch (error) {
@@ -60,37 +60,32 @@ const MerchantDashboard = () => {
 
 
 
-  // 删除文档
-  const handleDeleteDocument = async (documentId) => {
-    const success = await removeDocument(documentId);
-    if (success) {
-      message.success('文档删除成功');
-    } else {
-      message.error('文档删除失败');
-    }
-  };
+
 
   useEffect(() => {
-    console.log('🔍 MerchantDashboard useEffect - 用户信息:', user);
+    logger.component('MerchantDashboard', 'useEffect - 用户信息', user);
+
+    // 只有在用户已认证且为商家用户时才加载数据
+    if (!user || user.role !== 'merchant') {
+      logger.component('MerchantDashboard', '用户未认证或非商家用户，跳过数据加载');
+      setLoading(false);
+      return;
+    }
 
     const loadData = async () => {
-      console.log('🔍 开始加载数据...');
+      logger.component('MerchantDashboard', '开始加载数据');
       setLoading(true);
 
       try {
-        console.log('🔍 调用 fetchApplications...');
+        logger.component('MerchantDashboard', '调用 fetchApplications');
         await fetchApplications();
-        console.log('🔍 fetchApplications 完成');
-
-        console.log('🔍 调用 fetchDocuments...');
-        await fetchDocuments();
-        console.log('🔍 fetchDocuments 完成');
+        logger.component('MerchantDashboard', 'fetchApplications 完成');
       } catch (error) {
         console.error('❌ 加载数据失败:', error);
       }
 
       setLoading(false);
-      console.log('🔍 数据加载完成');
+      logger.component('MerchantDashboard', '数据加载完成');
     };
 
     loadData();
@@ -117,14 +112,14 @@ const MerchantDashboard = () => {
   const getStatusTag = (status) => {
     const statusMap = {
       'pending': { color: 'orange', text: '待审核', icon: <ClockCircleOutlined /> },
-      'submitted': { color: 'blue', text: '已提交', icon: <FileTextOutlined /> },
+      'submitted': { color: 'blue', text: '已提交', icon: <ClockCircleOutlined /> },
       'under_review': { color: 'processing', text: '审核中', icon: <ClockCircleOutlined /> },
       'approved': { color: 'green', text: '已通过', icon: <CheckCircleOutlined /> },
       'rejected': { color: 'red', text: '已拒绝', icon: <ExclamationCircleOutlined /> },
-      'draft': { color: 'default', text: '草稿', icon: <FileTextOutlined /> }
+      'draft': { color: 'default', text: '草稿', icon: <ClockCircleOutlined /> }
     };
     
-    const config = statusMap[status] || { color: 'default', text: status, icon: <FileTextOutlined /> };
+    const config = statusMap[status] || { color: 'default', text: status, icon: <ClockCircleOutlined /> };
     return (
       <Tag color={config.color} icon={config.icon}>
         {config.text}
@@ -168,7 +163,7 @@ const MerchantDashboard = () => {
             <Statistic
               title={<span style={{ fontWeight: 600, color: '#2c3e50' }}>总申请数</span>}
               value={stats.total}
-              prefix={<FileTextOutlined style={{ color: '#1890ff' }} />}
+              prefix={<ClockCircleOutlined style={{ color: '#1890ff' }} />}
               valueStyle={{ color: '#1890ff', fontWeight: 700, fontSize: '28px' }}
             />
           </div>
@@ -216,7 +211,7 @@ const MerchantDashboard = () => {
 
       <Row gutter={[32, 24]}>
         {/* 最近申请 */}
-        <Col xs={24} lg={14}>
+        <Col xs={24} lg={24}>
           <div className="modern-card" style={{ padding: '32px' }}>
             <div style={{
               display: 'flex',
@@ -316,100 +311,7 @@ const MerchantDashboard = () => {
           </div>
         </Col>
 
-        {/* 文档管理 */}
-        <Col xs={24} lg={10}>
-          <div className="modern-card" style={{ padding: '32px' }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '24px',
-              paddingBottom: '16px',
-              borderBottom: '2px solid #f0f0f0'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{
-                  width: '6px',
-                  height: '24px',
-                  background: 'linear-gradient(45deg, #667eea, #764ba2)',
-                  borderRadius: '3px',
-                  marginRight: '12px'
-                }} />
-                <h3 style={{
-                  margin: 0,
-                  fontSize: '20px',
-                  fontWeight: 600,
-                  color: '#2c3e50'
-                }}>
-                  文档管理
-                </h3>
-              </div>
-              <Button
-                type="primary"
-                size="small"
-                onClick={() => navigate('/apply')}
-              >
-                上传文档
-              </Button>
-            </div>
 
-            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-              {documents.length > 0 ? (
-                <List
-                  dataSource={documents}
-                  renderItem={doc => (
-                    <List.Item
-                      actions={[
-                        <Button
-                          type="link"
-                          size="small"
-                          onClick={() => window.open(doc.oss_url, '_blank')}
-                        >
-                          查看
-                        </Button>,
-                        <Button
-                          type="link"
-                          size="small"
-                          danger
-                          onClick={() => handleDeleteDocument(doc.id)}
-                        >
-                          删除
-                        </Button>
-                      ]}
-                    >
-                      <List.Item.Meta
-                        avatar={<FileTextOutlined style={{ fontSize: 16, color: '#1890ff' }} />}
-                        title={doc.original_name || doc.file_name}
-                        description={
-                          <Space direction="vertical" size={4}>
-                            <Text type="secondary">
-                              {(doc.file_size / 1024).toFixed(1)} KB
-                            </Text>
-                            <Text type="secondary">
-                              {new Date(doc.upload_time).toLocaleDateString()}
-                            </Text>
-                          </Space>
-                        }
-                      />
-                    </List.Item>
-                  )}
-                />
-              ) : (
-                <Empty
-                  description="暂无文档"
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                >
-                  <Button
-                    type="primary"
-                    onClick={() => navigate('/apply')}
-                  >
-                    上传文档
-                  </Button>
-                </Empty>
-              )}
-            </div>
-          </div>
-        </Col>
       </Row>
 
 

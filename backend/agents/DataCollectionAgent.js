@@ -5,33 +5,20 @@
 
 const BaseAgent = require('./BaseAgent');
 const { sanitizeString, isValidEmail, isValidPhone } = require('../utils/validators');
+const { getFieldsByType } = require('../config/merchant-fields');
 
 class DataCollectionAgent extends BaseAgent {
   constructor(config = {}) {
     super('DataCollectionAgent', config);
     
-    // 商家类型字段映射
-    this.merchantTypeFields = {
-      factory: [
-        'own_brand', 'own_brand_operation_capability', 'oem_brands', 
-        'annual_production_capacity', 'need_mold_modification', 
-        'mold_modification_time', 'accept_deep_cooperation', 
-        'accept_brand_co_creation', 'accept_exclusive_authorization',
-        'accept_other_channel_authorization', 'accept_channel_profit_sharing'
-      ],
-      brand: [
-        'brand_name', 'brand_awareness', 'sales_data', 'cooperation_budget'
-      ],
-      agent: [
-        'agent_brand_names', 'brand_awareness', 'sales_data', 'cooperation_budget'
-      ],
-      dealer: [
-        'dealer_brand_names', 'brand_awareness', 'sales_data', 'cooperation_budget'
-      ],
-      operator: [
-        'operated_brand_names', 'brand_awareness', 'sales_data', 'cooperation_budget'
-      ]
-    };
+    // 从统一配置文件获取商家类型字段映射
+    this.merchantTypeFields = {};
+    const merchantTypes = ['factory', 'brand', 'agent', 'dealer', 'operator'];
+    
+    merchantTypes.forEach(type => {
+      const fields = getFieldsByType(type);
+      this.merchantTypeFields[type] = fields.map(field => field.field_name);
+    });
 
     // 必填字段定义
     this.requiredFields = {

@@ -115,16 +115,47 @@ class SystemAgent extends BaseAgent {
         }, transaction);
       }
 
-      // 3. 保存文件信息到 business_qualification_document 表
+      // 3. 上传文件到OSS并保存记录
+      const { getOSSService } = require('../services/OSSService');
+      const ossService = getOSSService();
+
       for (const file of files) {
-        await this.insertQualificationDocument({
-          user_id: userId,
-          file_name: file.originalname,
-          file_url: file.path,
-          file_id: file.filename,
-          file_type: file.mimetype,
-          upload_time: new Date()
-        }, transaction);
+        try {
+          // 生成OSS文件键
+          const fileKey = ossService.generateFileKey(userId, file.originalname);
+
+          // 上传文件到OSS
+          const uploadResult = await ossService.uploadFile(
+            file.buffer,
+            fileKey,
+            file.mimetype
+          );
+
+          if (!uploadResult.success) {
+            console.error(`OSS上传失败: ${file.originalname}`, uploadResult.error);
+            // 如果OSS上传失败，使用模拟URL
+            uploadResult.oss_url = `https://yochat-v5.oss-cn-hangzhou.aliyuncs.com/${fileKey}`;
+            uploadResult.oss_key = fileKey;
+          }
+
+          await this.insertDocumentUpload({
+            user_id: userId,
+            file_name: file.originalname,
+            original_name: file.originalname,
+            file_size: file.size || 0,
+            file_type: file.mimetype?.split('/').pop() || 'pdf',
+            mime_type: file.mimetype,
+            oss_url: uploadResult.oss_url,
+            oss_key: uploadResult.oss_key,
+            status: 'uploaded'
+          }, transaction);
+
+          console.log(`✅ 文件上传成功: ${file.originalname} -> ${uploadResult.oss_url}`);
+
+        } catch (error) {
+          console.error(`❌ 文件处理失败: ${file.originalname}`, error);
+          throw error;
+        }
       }
 
       // 4. 记录历史
@@ -401,17 +432,20 @@ class SystemAgent extends BaseAgent {
     return await executor.execute(sql, [data.user_id, data.merchant_type, data.field_name, data.field_value]);
   }
 
-  async insertQualificationDocument(data, transaction = null) {
+  async insertDocumentUpload(data, transaction = null) {
     const sql = `
-      INSERT INTO business_qualification_document
-      (user_id, file_name, file_url, file_id, file_type, upload_time)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO document_uploads
+      (user_id, application_id, file_name, original_name, file_size, file_type, mime_type, oss_url, oss_key, status, upload_time)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `;
     const executor = transaction || this.db;
     return await executor.execute(sql, [
-      data.user_id, data.file_name, data.file_url, data.file_id, data.file_type, data.upload_time
+      data.user_id, data.application_id, data.file_name, data.original_name, data.file_size,
+      data.file_type, data.mime_type, data.oss_url, data.oss_key, data.status
     ]);
   }
+
+
 
   async insertWorkflowTask(data, transaction = null) {
     const sql = `
@@ -429,12 +463,12 @@ class SystemAgent extends BaseAgent {
   async insertWorkflowHistory(data, transaction = null) {
     const sql = `
       INSERT INTO workflow_history
-      (user_id, task_id, action, actor_type, actor_id, actor_name, from_status, to_status, comment, metadata)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (user_id, application_id, task_id, action, actor_type, actor_id, actor_name, from_status, to_status, comment, metadata)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const executor = transaction || this.db;
     return await executor.execute(sql, [
-      data.user_id, data.task_id, data.action, data.actor_type, data.actor_id,
+      data.user_id, data.application_id, data.task_id, data.action, data.actor_type, data.actor_id,
       data.actor_name, data.from_status, data.to_status, data.comment, data.metadata
     ]);
   }

@@ -7,31 +7,16 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const ApplicationService = require('../services/ApplicationService');
-const { authenticateToken, optionalAuth, requireMerchant } = require('../middleware/auth');
+const { authenticateToken, requireMerchant } = require('../middleware/auth');
 const router = express.Router();
 
 // 移除了Agent和WorkflowEngine，使用简化的服务层
 
-// 配置文件上传
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, '../uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    cb(null, file.fieldname + '-' + uniqueSuffix + ext);
-  }
-});
-
+// 配置文件上传 - 使用内存存储
 const upload = multer({
-  storage: storage,
+  storage: multer.memoryStorage(), // 使用内存存储，不保存到磁盘
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB
+    fileSize: 100 * 1024 * 1024, // 100MB
     files: 10 // 最多10个文件
   },
   fileFilter: function (req, file, cb) {
@@ -64,7 +49,7 @@ const upload = multer({
 /**
  * 商家申请提交接口
  */
-router.post('/apply', optionalAuth, upload.array('files'), async (req, res) => {
+router.post('/apply', authenticateToken, requireMerchant, upload.array('files'), async (req, res) => {
   try {
     console.log('Received merchant application:', {
       body: req.body,
@@ -98,6 +83,7 @@ router.post('/apply', optionalAuth, upload.array('files'), async (req, res) => {
       message: '申请提交成功',
       data: {
         userId: result.userId,
+        applicationId: result.applicationId,  // 新增：返回申请的实际ID
         taskId: result.taskId,
         assignedReviewer: result.assignedReviewer,
         status: 'submitted'
@@ -225,7 +211,17 @@ router.get('/my-applications', authenticateToken, requireMerchant, async (req, r
         wt.created_at as task_created_at,
         wt.updated_at as task_updated_at
       FROM business_cooperation bc
-      LEFT JOIN workflow_tasks wt ON bc.user_id = wt.user_id
+      LEFT JOIN (
+        SELECT
+          application_id,
+          task_id,
+          status,
+          assigned_to,
+          created_at,
+          updated_at,
+          ROW_NUMBER() OVER (PARTITION BY application_id ORDER BY updated_at DESC) as rn
+        FROM workflow_tasks
+      ) wt ON bc.application_id = wt.application_id AND wt.rn = 1
       WHERE bc.user_id = ?
       ORDER BY bc.submitted_at DESC
     `, [userId]);
@@ -236,8 +232,8 @@ router.get('/my-applications', authenticateToken, requireMerchant, async (req, r
     const applicationsWithDetails = await Promise.all(
       applications.map(async (app) => {
         const details = await execute(
-          'SELECT * FROM merchant_details WHERE user_id = ? ORDER BY created_at',
-          [app.user_id]
+          'SELECT * FROM merchant_details WHERE application_id = ? ORDER BY created_at',
+          [app.application_id]
         );
 
         const documents = await execute(
@@ -314,15 +310,15 @@ router.get('/application/:applicationId', authenticateToken, async (req, res) =>
 
     // 获取动态字段
     const dynamicFields = await execute(
-      'SELECT * FROM merchant_details WHERE user_id = ? ORDER BY created_at',
-      [application.user_id]
+      'SELECT * FROM merchant_details WHERE application_id = ? ORDER BY created_at',
+      [application.application_id]
     );
 
-    // 获取文档
-    const documents = await execute(
-      'SELECT * FROM business_qualification_document WHERE user_id = ? ORDER BY upload_time',
-      [application.user_id]
-    );
+    // 获取文档 - 使用DocumentService统一查询
+    const DocumentService = require('../services/DocumentService');
+    const documentService = new DocumentService();
+    const documentsResult = await documentService.getApplicationDocuments(application.application_id);
+    const documents = documentsResult.data;
 
     // 获取审核历史
     const history = await execute(
@@ -374,7 +370,7 @@ router.get('/applications', authenticateToken, requireMerchant, async (req, res)
       name: req.user.name
     });
 
-    const userId = req.user.user_id || req.user.id;
+    const userId = req.user.userId;
     console.log('🔍 别名路由使用的查询user_id:', userId);
 
     // 查询该商家的所有申请 - 只通过user_id匹配
@@ -387,7 +383,17 @@ router.get('/applications', authenticateToken, requireMerchant, async (req, res)
         wt.created_at as task_created_at,
         wt.updated_at as task_updated_at
       FROM business_cooperation bc
-      LEFT JOIN workflow_tasks wt ON bc.user_id = wt.user_id
+      LEFT JOIN (
+        SELECT
+          application_id,
+          task_id,
+          status,
+          assigned_to,
+          created_at,
+          updated_at,
+          ROW_NUMBER() OVER (PARTITION BY application_id ORDER BY updated_at DESC) as rn
+        FROM workflow_tasks
+      ) wt ON bc.application_id = wt.application_id AND wt.rn = 1
       WHERE bc.user_id = ?
       ORDER BY bc.submitted_at DESC
     `, [userId]);
@@ -398,8 +404,8 @@ router.get('/applications', authenticateToken, requireMerchant, async (req, res)
     const applicationsWithDetails = await Promise.all(
       applications.map(async (app) => {
         const details = await execute(
-          'SELECT * FROM merchant_details WHERE user_id = ? ORDER BY created_at',
-          [app.user_id]
+          'SELECT * FROM merchant_details WHERE application_id = ? ORDER BY created_at',
+          [app.application_id]
         );
 
         const documents = await execute(

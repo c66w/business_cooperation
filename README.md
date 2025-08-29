@@ -61,14 +61,6 @@ cd business_cooperation
 cp backend/.env.example backend/.env
 ```
 
-编辑 `backend/.env` 文件，配置你的数据库连接信息：
-```bash
-DB_BASE_URL=https://data-server-test.ywwl.com
-DB_CONNECTION_ID=你的连接ID
-DB_TIMEOUT=30000
-PORT=3001
-```
-
 ### 2. 安装依赖
 
 ```bash
@@ -315,7 +307,6 @@ cd business_cooperation
 ### 端口说明
 
 - **3001**: 主服务端口（前端页面 + 后端API）
-- **8000**: Python微服务端口（可选，用于直接访问文档处理API）
 
 ### 环境变量配置
 
@@ -329,7 +320,6 @@ services:
     environment:
       - NODE_ENV=production
       - BACKEND_PORT=3001
-      - PYTHON_SERVICE_PORT=8000
 ```
 
 ## 🤝 贡献

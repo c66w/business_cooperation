@@ -154,10 +154,10 @@ router.post('/accept-task/:taskId', authenticateToken, requireReviewer, async (r
       // 记录历史
       await transaction.execute(`
         INSERT INTO workflow_history 
-        (user_id, task_id, action, actor_type, actor_id, actor_name, from_status, to_status, comment, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        (user_id, application_id, task_id, action, actor_type, actor_id, actor_name, from_status, to_status, comment, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `, [
-        task.user_id, taskId, 'accepted', 'reviewer', req.user.userId,
+        task.user_id, task.application_id, taskId, 'accepted', 'reviewer', req.user.userId,
         req.user.name, 'pending', 'in_progress', '审核员接受任务'
       ]);
 
@@ -303,15 +303,15 @@ router.get('/application/:applicationId', authenticateToken, requireReviewer, as
 
     // 获取动态字段
     const dynamicFields = await execute(
-      'SELECT * FROM merchant_details WHERE user_id = ? ORDER BY created_at',
-      [application.user_id]
+      'SELECT * FROM merchant_details WHERE application_id = ? ORDER BY created_at',
+      [application.application_id]
     );
 
-    // 获取文档
-    const documents = await execute(
-      'SELECT * FROM business_qualification_document WHERE user_id = ? ORDER BY upload_time',
-      [application.user_id]
-    );
+    // 获取文档 - 使用DocumentService统一查询
+    const DocumentService = require('../services/DocumentService');
+    const documentService = new DocumentService();
+    const documentsResult = await documentService.getApplicationDocuments(application.application_id);
+    const documents = documentsResult.data;
 
     // 获取审核历史
     const history = await execute(
@@ -397,14 +397,15 @@ router.get('/task/:taskId/application', authenticateToken, requireReviewer, asyn
 
     // 获取完整申请详情
     const dynamicFields = await execute(
-      'SELECT * FROM merchant_details WHERE user_id = ? ORDER BY created_at',
-      [application.user_id]
+      'SELECT * FROM merchant_details WHERE application_id = ? ORDER BY created_at',
+      [application.application_id]
     );
 
-    const documents = await execute(
-      'SELECT * FROM business_qualification_document WHERE user_id = ? ORDER BY upload_time',
-      [application.user_id]
-    );
+    // 获取文档 - 使用DocumentService统一查询
+    const DocumentService = require('../services/DocumentService');
+    const documentService = new DocumentService();
+    const documentsResult = await documentService.getApplicationDocuments(application.application_id);
+    const documents = documentsResult.data;
 
     const history = await execute(
       'SELECT * FROM workflow_history WHERE user_id = ? ORDER BY created_at DESC',

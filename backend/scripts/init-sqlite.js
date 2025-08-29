@@ -5,6 +5,7 @@
 
 require('dotenv').config();
 const { initializeDatabase, execute, tableExists, closeDatabase, getDatabaseInfo } = require('../config/database-sqlite');
+const { getFieldsForDatabaseInsert } = require('../config/merchant-fields');
 
 /**
  * SQLite版本的数据库结构SQL
@@ -33,19 +34,7 @@ CREATE TABLE IF NOT EXISTS business_cooperation (
     submitted_at DATETIME
 );
 
--- 2. 商家资质文档表
-CREATE TABLE IF NOT EXISTS business_qualification_document (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT NOT NULL,
-    file_name TEXT NOT NULL,
-    file_url TEXT NOT NULL,
-    file_id TEXT,
-    file_type TEXT,
-    upload_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES business_cooperation(user_id) ON DELETE CASCADE
-);
 
-CREATE INDEX IF NOT EXISTS idx_business_qualification_document_user_id ON business_qualification_document(user_id);
 
 -- 3. 商家详细信息表（动态字段存储）
 CREATE TABLE IF NOT EXISTS merchant_details (
@@ -212,6 +201,31 @@ CREATE TABLE IF NOT EXISTS merchant_type_fields (
 CREATE INDEX IF NOT EXISTS idx_merchant_type_fields_merchant_type ON merchant_type_fields(merchant_type);
 CREATE INDEX IF NOT EXISTS idx_merchant_type_fields_display_order ON merchant_type_fields(display_order);
 
+-- 11. 文档上传记录表
+CREATE TABLE IF NOT EXISTS document_uploads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    application_id TEXT,
+    file_name TEXT NOT NULL,
+    original_name TEXT NOT NULL,
+    file_size INTEGER,
+    file_type TEXT,
+    mime_type TEXT,
+    oss_url TEXT NOT NULL,
+    oss_key TEXT NOT NULL,
+    upload_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    status TEXT DEFAULT 'uploaded' CHECK (status IN ('uploaded', 'parsing', 'parsed', 'failed')),
+    error_message TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES business_cooperation(user_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_document_uploads_user_id ON document_uploads(user_id);
+CREATE INDEX IF NOT EXISTS idx_document_uploads_application_id ON document_uploads(application_id);
+CREATE INDEX IF NOT EXISTS idx_document_uploads_status ON document_uploads(status);
+CREATE INDEX IF NOT EXISTS idx_document_uploads_upload_time ON document_uploads(upload_time);
+
 -- 重新启用外键约束
 PRAGMA foreign_keys = ON;
 `;
@@ -317,6 +331,29 @@ async function insertInitialData() {
     } catch (error) {
       console.error('插入审核员数据失败:', error.message);
     }
+  }
+
+  console.log('插入商家类型字段配置...');
+
+  // 使用统一的字段配置文件
+  const merchantTypes = ['factory', 'brand', 'agent', 'dealer', 'operator'];
+  
+  for (const merchantType of merchantTypes) {
+    const fields = getFieldsForDatabaseInsert(merchantType);
+    
+    for (const field of fields) {
+      try {
+        await execute(`
+          INSERT OR REPLACE INTO merchant_type_fields
+          (merchant_type, field_name, field_label, field_type, field_options, is_required, validation_rules, display_order, is_active)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, field);
+      } catch (error) {
+        console.error(`插入字段配置失败 (${merchantType}.${field[1]}):`, error.message);
+      }
+    }
+    
+    console.log(`✅ ${merchantType} 类型字段配置插入完成`);
   }
 
   console.log('✅ 初始数据插入完成');
@@ -510,6 +547,25 @@ async function createTables() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(merchant_type, field_name)
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS document_uploads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      application_id TEXT,
+      file_name TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      file_size INTEGER,
+      file_type TEXT,
+      mime_type TEXT,
+      oss_url TEXT NOT NULL,
+      oss_key TEXT NOT NULL,
+      upload_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+      status TEXT DEFAULT 'uploaded' CHECK (status IN ('uploaded', 'parsing', 'parsed', 'failed')),
+      error_message TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES business_cooperation(user_id) ON DELETE CASCADE
     )`
   ];
 
@@ -558,7 +614,11 @@ async function createIndexes() {
     'CREATE INDEX IF NOT EXISTS idx_reviewers_is_active ON reviewers(is_active)',
     'CREATE INDEX IF NOT EXISTS idx_reviewers_email ON reviewers(email)',
     'CREATE INDEX IF NOT EXISTS idx_merchant_type_fields_merchant_type ON merchant_type_fields(merchant_type)',
-    'CREATE INDEX IF NOT EXISTS idx_merchant_type_fields_display_order ON merchant_type_fields(display_order)'
+    'CREATE INDEX IF NOT EXISTS idx_merchant_type_fields_display_order ON merchant_type_fields(display_order)',
+    'CREATE INDEX IF NOT EXISTS idx_document_uploads_user_id ON document_uploads(user_id)',
+    'CREATE INDEX IF NOT EXISTS idx_document_uploads_application_id ON document_uploads(application_id)',
+    'CREATE INDEX IF NOT EXISTS idx_document_uploads_status ON document_uploads(status)',
+    'CREATE INDEX IF NOT EXISTS idx_document_uploads_upload_time ON document_uploads(upload_time)'
   ];
 
   for (let i = 0; i < indexes.length; i++) {
@@ -589,7 +649,8 @@ async function checkExistingTables() {
     'system_config',
     'users',
     'reviewers',
-    'merchant_type_fields'
+    'merchant_type_fields',
+    'document_uploads'
   ];
 
   for (const table of tables) {

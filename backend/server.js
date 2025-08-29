@@ -2,9 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const axios = require('axios');
 const path = require('path');
-const dbConfig = require('./config/database');
+// const dbConfig = require('./config/database'); // 暂时注释掉，主要使用SQLite
 const { isValidUserId, sanitizeString, isValidQueryResult } = require('./utils/validators');
 
 // 导入数据库连接
@@ -17,6 +16,7 @@ const reviewRouter = require('./routes/review');
 const adminRouter = require('./routes/admin');
 const reviewerRouter = require('./routes/reviewer');
 const documentRouter = require('./routes/document');
+const formRouter = require('./routes/form');
 
 const app = express();
 const PORT = process.env.BACKEND_PORT || 3001;
@@ -62,6 +62,24 @@ app.use(express.static(__dirname));
 // 静态文件服务（用于文件上传）
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// 基础路由
+app.get('/', (req, res) => {
+  res.json({
+    message: '商家申请审核系统 API',
+    version: '1.0.0',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// 健康检查
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0'
+  });
+});
+
 // 注册路由
 app.use('/api/auth', authRouter);
 app.use('/api/merchant', merchantRouter);
@@ -69,41 +87,112 @@ app.use('/api/review', reviewRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/reviewer', reviewerRouter);
 app.use('/api/document', documentRouter);
+app.use('/api/form', formRouter);
 
 // LLM智能分析接口 - 基础信息阶段
 app.post('/api/llm/analyze/basic', async (req, res) => {
   try {
     const { documents, currentData } = req.body;
 
-    console.log('收到基础信息智能分析请求:', {
-      documentsCount: documents?.length || 0,
-      currentData: currentData
-    });
+    console.log('🔍 收到基础信息智能分析请求:');
+    console.log('📋 请求体:', JSON.stringify(req.body, null, 2));
+    console.log('📄 documents类型:', typeof documents);
+    console.log('📄 documents值:', documents);
+    console.log('📄 documents是否为数组:', Array.isArray(documents));
+    console.log('📄 documentsCount:', documents?.length || 0);
+    console.log('📊 currentData:', currentData);
 
-    // 调用真实的Python服务进行LLM分析
+    // 使用本地LLM服务进行分析
+    const LLMService = require('./services/LLMService');
+    const llmService = new LLMService();
+
     try {
-      const response = await axios.post('http://localhost:8000/api/llm/analyze', {
-        documents: documents,
+      // 实时解析文档内容
+      let documentContent = '';
+
+      if (documents && documents.length > 0) {
+        console.log('🔍 开始实时解析文档内容...');
+
+        for (const doc of documents) {
+          try {
+            // 从文档URL提取OSS key
+            const ossUrl = doc.url;
+            if (!ossUrl) {
+              throw new Error(`文档缺少URL: ${doc.name}`);
+            }
+
+            // 提取OSS key (去掉域名部分)
+            const ossKey = ossUrl.replace(/^https?:\/\/[^\/]+\//, '');
+            console.log(`📥 从OSS下载文档: ${ossKey}`);
+
+            // 从OSS下载文件数据
+            const { getOSSService } = require('./services/OSSService');
+            const ossService = getOSSService();
+            const fileData = await ossService.downloadFile(ossKey);
+
+            // 调用文档提取服务解析内容
+            const { getDocumentExtractService } = require('./services/DocumentExtractService');
+            const documentExtractService = getDocumentExtractService();
+            const extractResult = await documentExtractService.extractFromBytes(fileData, doc.name);
+
+            console.log(`✅ 文档解析成功: ${doc.name}, 提取内容长度: ${extractResult.fullText.length}`);
+
+            // 添加解析后的内容
+            documentContent += `文档名称: ${doc.name}\n`;
+            documentContent += `文档内容:\n${extractResult.fullText}\n\n`;
+
+          } catch (docError) {
+            console.error(`❌ 文档解析失败: ${doc.name}`, docError);
+            throw new Error(`文档解析失败: ${doc.name} - ${docError.message}`);
+          }
+        }
+      }
+
+      // 添加当前数据到分析内容
+      if (currentData) {
+        documentContent += `\n\n当前表单数据:\n${JSON.stringify(currentData, null, 2)}`;
+      }
+
+      // 如果没有任何内容，直接报错
+      if (!documentContent.trim()) {
+        throw new Error('没有可分析的文档内容，请先上传文档');
+      }
+
+      // 调用本地LLM服务进行基础信息分析
+      const analysisResult = await llmService.analyzeBasicInfo(
+        documentContent || '基础信息阶段分析',
+        currentData || {}
+      );
+
+      console.log('✅ 基础信息LLM分析完成');
+
+      // 提取字段数据（新的扁平化结构）
+      const { confidence_score, suggestions, ...fields } = analysisResult;
+
+      console.log('📤 返回给前端的数据结构:', {
+        fields: fields,
+        suggestions: suggestions || [],
         stage: 'basic',
-        current_data: currentData
-      }, {
-        timeout: 120000 // 2分钟超时
+        confidence_score: confidence_score || 0.8
       });
 
-      if (response.data.success) {
-        return res.json(response.data);
-      } else {
-        throw new Error(response.data.message || 'LLM分析失败');
-      }
+      return res.json({
+        success: true,
+        data: {
+          fields: fields,
+          suggestions: suggestions || [],
+          stage: 'basic',
+          confidence_score: confidence_score || 0.8
+        }
+      });
+
     } catch (error) {
-      console.error('❌ Python服务LLM分析失败:', error.message);
+      console.error('❌ 本地LLM服务分析失败:', error.message);
       return res.status(500).json({
         success: false,
         message: `LLM分析失败: ${error.message}`
       });
     }
-
-
 
   } catch (error) {
     console.error('基础信息智能分析失败:', error);
@@ -138,32 +227,101 @@ app.post('/api/llm/analyze/detailed', async (req, res) => {
       });
     }
 
-    // 调用真实的Python服务进行详细信息LLM分析
+    // 使用本地LLM服务进行详细信息分析
+    const LLMService = require('./services/LLMService');
+    const llmService = new LLMService();
+
     try {
-      const response = await axios.post('http://localhost:8000/api/llm/analyze', {
-        documents: documents,
-        stage: 'detailed',
-        merchant_type: actualMerchantType,
-        current_data: currentData
-      }, {
-        timeout: 120000 // 2分钟超时
+      // 实时解析文档内容
+      let documentContent = '';
+
+      if (documents && documents.length > 0) {
+        console.log('🔍 开始实时解析文档内容（详细信息阶段）...');
+
+        for (const doc of documents) {
+          try {
+            // 从文档URL提取OSS key
+            const ossUrl = doc.url;
+            if (!ossUrl) {
+              throw new Error(`文档缺少URL: ${doc.name}`);
+            }
+
+            // 提取OSS key (去掉域名部分)
+            const ossKey = ossUrl.replace(/^https?:\/\/[^\/]+\//, '');
+            console.log(`📥 从OSS下载文档: ${ossKey}`);
+
+            // 从OSS下载文件数据
+            const { getOSSService } = require('./services/OSSService');
+            const ossService = getOSSService();
+            const fileData = await ossService.downloadFile(ossKey);
+
+            // 调用文档提取服务解析内容
+            const { getDocumentExtractService } = require('./services/DocumentExtractService');
+            const documentExtractService = getDocumentExtractService();
+            const extractResult = await documentExtractService.extractFromBytes(fileData, doc.name);
+
+            console.log(`✅ 文档解析成功: ${doc.name}, 提取内容长度: ${extractResult.fullText.length}`);
+
+            // 添加解析后的内容
+            documentContent += `文档名称: ${doc.name}\n`;
+            documentContent += `文档内容:\n${extractResult.fullText}\n\n`;
+
+          } catch (docError) {
+            console.error(`❌ 文档解析失败: ${doc.name}`, docError);
+            throw new Error(`文档解析失败: ${doc.name} - ${docError.message}`);
+          }
+        }
+      }
+
+      // 添加当前数据到分析内容，包含更详细的信息
+      if (currentData) {
+        documentContent += `\n\n详细表单数据:\n${JSON.stringify(currentData, null, 2)}`;
+        documentContent += `\n\n商家类型: ${actualMerchantType}`;
+      }
+
+      // 如果没有任何内容，直接报错
+      if (!documentContent.trim()) {
+        throw new Error('没有可分析的文档内容，请先上传文档');
+      }
+
+      // 调用本地LLM服务进行详细信息分析
+      const analysisResult = await llmService.analyzeDetailedInfo(
+        documentContent || '详细信息阶段分析',
+        currentData || {},
+        actualMerchantType
+      );
+
+      console.log('✅ 详细信息LLM分析完成');
+
+      // 提取字段数据（新的扁平化结构）
+      const { confidence_score, suggestions, ...fields } = analysisResult;
+      const finalSuggestions = suggestions || [];
+
+      // 为详细分析添加更多建议
+      finalSuggestions.push(
+        `基于${actualMerchantType}类型的专业建议已生成`,
+        '建议完善相关资质证明文件',
+        '确保所有必填字段信息准确完整'
+      );
+
+      return res.json({
+        success: true,
+        data: {
+          fields: fields,
+          suggestions: finalSuggestions,
+          stage: 'detailed',
+          merchant_type: actualMerchantType,
+          confidence_score: confidence_score || 0.8
+        }
       });
 
-      if (response.data.success) {
-        return res.json(response.data);
-      } else {
-        throw new Error(response.data.message || 'LLM分析失败');
-      }
     } catch (error) {
-      console.error('❌ Python服务详细信息LLM分析失败:', error.message);
+      console.error('❌ 本地LLM服务详细分析失败:', error.message);
       return res.status(500).json({
         success: false,
         message: `详细信息LLM分析失败: ${error.message}`
       });
     }
-
-
-
 
   } catch (error) {
     console.error('详细信息智能分析失败:', error);
@@ -258,8 +416,10 @@ app.get('/api/form/fields/:type', async (req, res) => {
   }
 });
 
-// 默认字段配置函数
+// 默认字段配置函数 - 使用统一的配置文件
 function getDefaultFieldsConfig(type) {
+  const { getFieldsForFrontend } = require('./config/merchant-fields');
+  
   const commonFields = [
     { name: 'product_category', label: '产品类别', type: 'select', required: true, order: 1,
       options: [
@@ -289,86 +449,18 @@ function getDefaultFieldsConfig(type) {
     { name: 'company_description', label: '公司简介', type: 'textarea', required: true, order: 2 }
   ];
 
-  const typeSpecificFields = {
-    factory: [
-      { name: 'specific_products', label: '具体产品', type: 'text', required: true, order: 3 },
-      { name: 'own_brand', label: '自有品牌', type: 'text', required: false, order: 4, placeholder: '没有填无，有就填写具体品牌名称' },
-      { name: 'own_brand_operation_ability', label: '自有品牌运营能力', type: 'text', required: false, order: 5, placeholder: '没有填无，指店铺运营、客服、物流等能力' },
-      { name: 'oem_famous_brands', label: '代工的知名品牌', type: 'text', required: false, order: 6, placeholder: '填写具体品牌名称' },
-      { name: 'annual_production_capacity', label: '年生产规模（产能优势）', type: 'text', required: true, order: 7, placeholder: '最大产出能力' },
-      { name: 'need_mold_or_repackage', label: '是否需要开模或改包装', type: 'radio', required: false, order: 8,
-        options: ['是', '否', '未确认'] },
-      { name: 'estimated_mold_time', label: '预计开模/改包装时间', type: 'text', required: false, order: 9, placeholder: '示例：x天、x个月' },
-      { name: 'accept_brand_cocreation', label: '是否接受品牌共创', type: 'radio', required: true, order: 10,
-        options: ['是', '否'], description: '品牌属于遥望或遥望合资公司' },
-      { name: 'accept_deep_cooperation', label: '是否接受深度合作', type: 'radio', required: true, order: 11,
-        options: ['是', '否'] },
-      { name: 'accept_online_exclusive', label: '是否接受线上/全渠道独家', type: 'radio', required: true, order: 12,
-        options: ['是', '否'] },
-      { name: 'accept_yaowang_authorization', label: '是否接受遥望授权其他渠道', type: 'radio', required: true, order: 13,
-        options: ['是', '否'] },
-      { name: 'accept_omnichannel_dividend', label: '是否接受后续全渠道分红', type: 'radio', required: true, order: 14,
-        options: ['是', '否'] }
-    ],
-    brand: [
-      { name: 'brand_name', label: '品牌名称', type: 'text', required: true, order: 3, placeholder: '填写具体品牌名称' },
-      { name: 'brand_popularity', label: '品牌知名度', type: 'textarea', required: false, order: 4, placeholder: '可上传第三方平台店铺首页截图' },
-      { name: 'sales_data', label: '销售数据', type: 'textarea', required: false, order: 5, placeholder: '线上销售、店铺自播、线下商超销售数据' },
-      { name: 'cooperation_budget', label: '合作预算', type: 'text', required: false, order: 6, placeholder: '日常销售或营销预算投入' }
-    ],
-    agent: [
-      { name: 'agent_brand_name', label: '代理的品牌名称', type: 'text', required: false, order: 3, placeholder: '没有填无，有就填写代理品牌名称' },
-      { name: 'brand_popularity', label: '品牌知名度', type: 'textarea', required: false, order: 4, placeholder: '可上传第三方平台店铺首页截图' },
-      { name: 'sales_data', label: '销售数据', type: 'textarea', required: false, order: 5, placeholder: '线上销售、历史合作主播、线下商超销售数据' },
-      { name: 'cooperation_budget', label: '合作预算', type: 'text', required: false, order: 6, placeholder: '日常销售或营销预算投入' }
-    ],
-    dealer: [
-      { name: 'dealer_brand_name', label: '经销的品牌名称', type: 'text', required: false, order: 3, placeholder: '没有填无，有就填写经销品牌名称' },
-      { name: 'brand_popularity', label: '品牌知名度', type: 'textarea', required: false, order: 4, placeholder: '可上传第三方平台店铺首页截图' },
-      { name: 'sales_data', label: '销售数据', type: 'textarea', required: false, order: 5, placeholder: '线上销售、历史合作主播、线下商超销售数据' },
-      { name: 'cooperation_budget', label: '合作预算', type: 'text', required: false, order: 6, placeholder: '日常销售或营销预算投入' }
-    ],
-    operator: [
-      { name: 'operator_brand_name', label: '代运营的品牌名称', type: 'text', required: true, order: 3, placeholder: '填写代运营的品牌名称' },
-      { name: 'brand_popularity', label: '品牌知名度', type: 'textarea', required: false, order: 4, placeholder: '可上传第三方平台店铺首页截图' },
-      { name: 'sales_data', label: '销售数据', type: 'textarea', required: false, order: 5, placeholder: '线上销售、店铺自播、线下商超销售数据' },
-      { name: 'cooperation_budget', label: '合作预算', type: 'text', required: false, order: 6, placeholder: '近期日常销售或营销预算可投入的具体金额' }
-    ]
-  };
+  // 从统一配置文件获取类型特定字段
+  const typeSpecificFields = getFieldsForFrontend(type).map(field => ({
+    ...field,
+    order: field.order + 2 // 调整顺序，在通用字段之后
+  }));
 
-  return [...commonFields, ...(typeSpecificFields[type] || [])];
+  return [...commonFields, ...typeSpecificFields];
 }
 
-// 数据库查询函数
+// 数据库查询函数 - 暂时禁用远程数据库，主要使用SQLite
 async function executeSQL(sql) {
-  try {
-    const payload = {
-      sql: sql,
-      connection_id: dbConfig.connectionId
-    };
-
-    console.log('执行SQL查询:', sql);
-    console.log('请求地址:', `${dbConfig.baseURL}${dbConfig.endpoints.sqlQuery}`);
-
-    const response = await axios.post(
-      `${dbConfig.baseURL}${dbConfig.endpoints.sqlQuery}`,
-      payload,
-      {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: dbConfig.timeout
-      }
-    );
-
-    console.log('查询结果:', response.data);
-    return response.data;
-  } catch (error) {
-    console.error('Database query error:', error.message);
-    if (error.response) {
-      console.error('Response status:', error.response.status);
-      console.error('Response data:', error.response.data);
-    }
-    throw new Error(`数据库查询失败: ${error.message}`);
-  }
+  throw new Error('远程数据库查询已禁用，请使用SQLite数据库');
 }
 
 // SQL查询语句
@@ -386,18 +478,7 @@ const SQL_QUERIES = {
     ORDER BY user_id
   `,
 
-  // 获取所有资质文档
-  getQualificationDocuments: `
-    SELECT
-      user_id,
-      file_name,
-      file_url,
-      file_id,
-      file_type,
-      DATE_FORMAT(upload_time, '%Y-%m-%d %H:%i:%s') as upload_time
-    FROM business_qualification_document
-    ORDER BY upload_time DESC
-  `,
+
 
   // 根据user_id获取商家合作信息
   getBusinessCooperationByUserId: (userId) => {
@@ -415,22 +496,7 @@ const SQL_QUERIES = {
     `;
   },
 
-  // 根据user_id获取资质文档
-  getDocumentsByUserId: (userId) => {
-    const cleanUserId = sanitizeString(userId);
-    return `
-      SELECT
-        user_id,
-        file_name,
-        file_url,
-        file_id,
-        file_type,
-        DATE_FORMAT(upload_time, '%Y-%m-%d %H:%i:%s') as upload_time
-      FROM business_qualification_document
-      WHERE user_id = '${cleanUserId}'
-      ORDER BY upload_time DESC
-    `;
-  }
+
 };
 
 // API路由
@@ -480,16 +546,16 @@ app.get('/api/review/list', async (req, res) => {
         ORDER BY created_at DESC
       `);
 
-      // 查询资质文档数据
+      // 查询资质文档数据 - 统一使用document_uploads表
       const documents = await execute(`
         SELECT
-          user_id,
-          file_name,
-          file_url,
-          file_id,
+          application_id,
+          original_name as file_name,
+          oss_url as file_url,
+          id as file_id,
           file_type,
           datetime(upload_time) as upload_time
-        FROM business_qualification_document
+        FROM document_uploads
         ORDER BY upload_time DESC
       `);
 
@@ -555,15 +621,15 @@ app.get('/api/review/list', async (req, res) => {
   }
 });
 
-// 根据user_id获取详细信息 - 使用本地SQLite数据库
-app.get('/api/review/detail/:userId', async (req, res) => {
+// 根据application_id获取详细信息 - 使用本地SQLite数据库
+app.get('/api/review/detail/:applicationId', async (req, res) => {
   try {
-    const { userId } = req.params;
+    const { applicationId } = req.params;
 
-    if (!isValidUserId(userId)) {
+    if (!applicationId) {
       return res.status(400).json({
         success: false,
-        message: '用户ID格式不正确'
+        message: '申请ID不能为空'
       });
     }
 
@@ -571,7 +637,7 @@ app.get('/api/review/detail/:userId', async (req, res) => {
     try {
       const { execute } = require('./config/database-sqlite');
 
-      // 查询用户的合作信息
+      // 查询申请的合作信息
       const cooperations = await execute(`
         SELECT
           user_id,
@@ -586,90 +652,58 @@ app.get('/api/review/detail/:userId', async (req, res) => {
           updated_at,
           submitted_at
         FROM business_cooperation
-        WHERE user_id = ?
-      `, [userId]);
+        WHERE application_id = ?
+      `, [applicationId]);
 
-      // 查询用户的文档信息
-      const documents = await execute(`
-        SELECT
-          user_id,
-          file_name,
-          file_url,
-          file_id,
-          file_type,
-          datetime(upload_time) as upload_time
-        FROM business_qualification_document
-        WHERE user_id = ?
-        ORDER BY upload_time DESC
-      `, [userId]);
+      // 查询申请的文档信息 - 使用DocumentService统一查询
+      const DocumentService = require('./services/DocumentService');
+      const documentService = new DocumentService();
+      const documentsResult = await documentService.getApplicationDocuments(applicationId);
+      const documents = documentsResult.data;
 
-      // 查询用户的详细字段信息
+      // 查询申请的详细字段信息
       const details = await execute(`
         SELECT
           field_name,
           field_value
         FROM merchant_details
-        WHERE user_id = ?
-      `, [userId]);
+        WHERE application_id = ?
+      `, [applicationId]);
 
       if (cooperations.length === 0) {
         return res.status(404).json({
           success: false,
-          message: '未找到该用户的合作信息'
+          message: '未找到该申请的合作信息'
         });
       }
 
-      // 将详细字段转换为动态字段格式
-      const dynamicFields = details.map(d => `${d.field_name}:${d.field_value}`).join(';');
+      // 将详细字段转换为前端期望的数组格式
+      const dynamicFields = details.map(d => ({
+        field_name: d.field_name,
+        field_value: d.field_value
+      }));
 
       const cooperation = {
         ...cooperations[0],
         dynamic_fields: dynamicFields
       };
 
-      console.log(`✅ SQLite查询成功: 用户 ${userId} 的详细信息`);
+      console.log(`✅ SQLite查询成功: 申请 ${applicationId} 的详细信息`);
 
       res.json({
         success: true,
         data: {
           cooperation,
-          documents
+          documents,
+          details: dynamicFields  // 添加details字段供前端使用
         }
       });
 
     } catch (sqliteError) {
-      console.warn('⚠️  SQLite查询失败，尝试远程API:', sqliteError.message);
-
-      // 回退到远程API
-      const [cooperationResult, documentsResult] = await Promise.all([
-        executeSQL(SQL_QUERIES.getBusinessCooperationByUserId(userId)),
-        executeSQL(SQL_QUERIES.getDocumentsByUserId(userId))
-      ]);
-
-      // 检查查询结果
-      if (cooperationResult.status !== 'success' || documentsResult.status !== 'success') {
-        throw new Error('数据库查询失败');
-      }
-
-      const cooperations = cooperationResult.data?.result_data || [];
-      const documents = documentsResult.data?.result_data || [];
-
-      if (cooperations.length === 0) {
-        return res.status(404).json({
-          success: false,
-          message: '未找到该用户的合作信息'
-        });
-      }
-
-      console.log(`✅ 远程API查询成功: 用户 ${userId} 的详细信息`);
-
-      res.json({
-        success: true,
-        data: {
-          cooperation: cooperations[0], // 取第一条记录，因为user_id是唯一的
-          documents: documents
-        }
-      });
+      console.error('❌ SQLite查询失败:', sqliteError.message);
+      
+      // 直接抛出错误，不进行远程API回退
+      throw new Error(`获取申请详情失败: ${sqliteError.message}`);
     }
 
   } catch (error) {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Layout,
   Card,
@@ -30,9 +31,12 @@ import {
   ClockCircleOutlined,
   UserOutlined,
   FileTextOutlined,
-  ProfileOutlined
+  ProfileOutlined,
+  RobotOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../contexts/AuthContext';
+import logger from '../utils/logger';
+import { getMerchantTypeDisplayName } from '../utils/merchantTypeUtils';
 
 const { Header, Content, Sider } = Layout;
 const { TextArea } = Input;
@@ -86,12 +90,12 @@ const getFieldValue = (value) => {
 };
 
 const ReviewManagementPage = () => {
-  const { user, apiRequest } = useAuth();
+  const navigate = useNavigate();
+  const { user, apiRequest, hasPermission } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
-  const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [form] = Form.useForm();
   const [activeTab, setActiveTab] = useState('all');
   const [statistics, setStatistics] = useState({});
@@ -107,25 +111,30 @@ const ReviewManagementPage = () => {
     'overdue': { text: '已超时', color: 'red' }
   };
 
-  // 商家类型映射
-  const merchantTypeMap = {
-    'factory': '工厂',
-    'brand': '品牌商',
-    'agent': '代理商',
-    'dealer': '经销商',
-    'operator': '代运营商'
-  };
+
 
   useEffect(() => {
+    // 只有在用户已认证且有权限时才加载数据
+    if (!user || !hasPermission('admin')) {
+      logger.component('ReviewManagementPage', '用户未认证或无权限，跳过数据加载');
+      return;
+    }
+
     fetchTasks();
     fetchStatistics();
     fetchReviewers();
-  }, [activeTab]);
+  }, [activeTab, user]);
 
   // 初始化时获取审核员列表
   useEffect(() => {
+    // 只有在用户已认证且有权限时才加载审核员列表
+    if (!user || !hasPermission('admin')) {
+      logger.component('ReviewManagementPage', '用户未认证或无权限，跳过审核员列表加载');
+      return;
+    }
+
     fetchReviewers();
-  }, []);
+  }, [user]);
 
   /**
    * 获取任务列表
@@ -142,7 +151,7 @@ const ReviewManagementPage = () => {
       const response = await apiRequest(`/review/tasks${queryParams}`);
       if (response && response.success) {
         setTasks(response.data || []);
-        console.log('Tasks loaded:', response.data?.length || 0, 'tasks for tab:', activeTab);
+        logger.component('ReviewManagementPage', 'Tasks loaded', `${response.data?.length || 0} tasks for tab: ${activeTab}`);
       } else {
         message.error('获取任务列表失败');
         console.error('API response error:', response);
@@ -174,9 +183,9 @@ const ReviewManagementPage = () => {
    */
   const fetchReviewers = async () => {
     try {
-      console.log('🔍 开始获取审核员列表...');
+      logger.api('GET', '/review/reviewers');
       const response = await apiRequest('/review/reviewers');
-      console.log('📋 审核员API响应:', response);
+      logger.api('GET', '/review/reviewers', response);
 
       if (response && response.success) {
         // 将审核员数组转换为ID到姓名的映射
@@ -184,7 +193,7 @@ const ReviewManagementPage = () => {
         response.data.forEach(reviewer => {
           reviewerMap[reviewer.id] = reviewer.name;
         });
-        console.log('👥 审核员映射:', reviewerMap);
+        logger.component('ReviewManagementPage', '审核员映射', reviewerMap);
         setReviewers(reviewerMap);
       } else {
         console.error('❌ 获取审核员失败:', response);
@@ -195,31 +204,12 @@ const ReviewManagementPage = () => {
   };
 
   /**
-   * 查看任务详情
+   * 查看任务详情 - 跳转到独立详情页面
    */
-  const handleViewDetail = async (task) => {
-    try {
-      console.log('🔍 查看任务详情:', task, '当前用户角色:', user?.role);
-
-      // 管理员和审核员都使用审核员API（管理员也是审核员）
-      console.log('🔍 查看任务详情，任务ID:', task.task_id);
-      const response = await apiRequest(`/reviewer/task/${task.task_id}/application`);
-
-      if (response && response.success) {
-        setSelectedTask({
-          ...task,
-          ...response.data
-        });
-        setDetailModalVisible(true);
-        console.log('✅ 获取任务详情成功:', response.data);
-      } else {
-        message.error('获取详情失败');
-        console.error('❌ 获取详情失败:', response);
-      }
-    } catch (error) {
-      message.error('获取详情失败');
-      console.error('❌ 获取详情异常:', error);
-    }
+  const handleViewDetail = (task) => {
+    logger.component('ReviewManagementPage', '查看任务详情', { task, userRole: user?.role });
+    // 跳转到独立的详情页面，而不是Modal
+    navigate(`/review/detail/${task.application_id}`);
   };
 
   /**
@@ -240,9 +230,9 @@ const ReviewManagementPage = () => {
       return;
     }
 
-    console.log('查看文件:', { fileUrl, fileName });
+    logger.component('ReviewManagementPage', '查看文件', { fileUrl, fileName });
 
-    // 在新窗口中打开文件进行查看
+    // 直接打开OSS URL
     window.open(fileUrl, '_blank');
     message.success(`正在打开文件: ${fileName}`);
   };
@@ -346,8 +336,8 @@ const ReviewManagementPage = () => {
   const columns = [
     {
       title: '申请编号',
-      dataIndex: 'user_id',
-      key: 'user_id',
+      dataIndex: 'application_id',
+      key: 'application_id',
       width: 150,
       render: (text) => <span style={{ fontFamily: 'monospace' }}>{text}</span>
     },
@@ -363,7 +353,7 @@ const ReviewManagementPage = () => {
       key: 'merchant_type',
       width: 100,
       render: (type) => (
-        <Tag color="blue">{merchantTypeMap[type] || type}</Tag>
+        <Tag color="blue">{getMerchantTypeDisplayName(type)}</Tag>
       )
     },
     {
@@ -445,50 +435,114 @@ const ReviewManagementPage = () => {
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
-      {/* 统计卡片 */}
-      <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="待审核"
-              value={statistics.pending || 0}
-              valueStyle={{ color: '#fa8c16' }}
-              prefix={<ClockCircleOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="审核中"
-              value={statistics.in_progress || 0}
-              valueStyle={{ color: '#1890ff' }}
-              prefix={<UserOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="今日完成"
-              value={statistics.completed_today || 0}
-              valueStyle={{ color: '#52c41a' }}
-              prefix={<CheckOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="总完成"
-              value={statistics.completed || 0}
-              valueStyle={{ color: '#52c41a' }}
-              prefix={<CheckOutlined />}
-            />
-          </Card>
-        </Col>
-      </Row>
+    <Layout style={{ background: 'transparent' }}>
+      <Header style={{
+        background: 'rgba(255, 255, 255, 0.95)',
+        backdropFilter: 'blur(10px)',
+        padding: '0 24px',
+        borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
+        borderRadius: '0 0 20px 20px',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)'
+      }}>
+        <h1 style={{
+          margin: 0,
+          lineHeight: '64px',
+          background: 'linear-gradient(45deg, #667eea, #764ba2)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          fontWeight: 700,
+          fontSize: '24px'
+        }}>
+          商家合作审核管理
+        </h1>
+      </Header>
+
+      <Content style={{ padding: '24px', minHeight: 'calc(100vh - 64px)' }}>
+        <div className="page-container" style={{ maxWidth: 1400, margin: '0 auto' }}>
+
+          {/* 页面标题 */}
+          <div className="modern-card" style={{
+            marginBottom: 32,
+            padding: '40px',
+            textAlign: 'center',
+            background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1))'
+          }}>
+            <h1 style={{
+              marginBottom: 16,
+              fontSize: '32px',
+              background: 'linear-gradient(45deg, #667eea, #764ba2)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              fontWeight: 700
+            }}>
+              <RobotOutlined style={{ color: '#667eea', marginRight: 12 }} />
+              智能审核管理系统
+            </h1>
+            <p style={{
+              color: '#666',
+              fontSize: '18px',
+              marginBottom: 0,
+              fontWeight: 500
+            }}>
+              🚀 高效管理，智能分配，让审核工作更轻松
+            </p>
+          </div>
+
+          {/* 统计卡片 */}
+          <Row gutter={[24, 16]} style={{ marginBottom: 32 }}>
+            <Col xs={24} sm={12} md={6}>
+              <div className="stats-card" style={{
+                padding: '24px',
+                background: 'linear-gradient(135deg, rgba(250, 173, 20, 0.1), rgba(102, 126, 234, 0.1))'
+              }}>
+                <Statistic
+                  title={<span style={{ fontWeight: 600, color: '#2c3e50' }}>待审核</span>}
+                  value={statistics.pending || 0}
+                  prefix={<ClockCircleOutlined style={{ color: '#faad14' }} />}
+                  valueStyle={{ color: '#faad14', fontWeight: 700, fontSize: '28px' }}
+                />
+              </div>
+            </Col>
+            <Col xs={24} sm={12} md={6}>
+              <div className="stats-card" style={{
+                padding: '24px',
+                background: 'linear-gradient(135deg, rgba(24, 144, 255, 0.1), rgba(102, 126, 234, 0.1))'
+              }}>
+                <Statistic
+                  title={<span style={{ fontWeight: 600, color: '#2c3e50' }}>审核中</span>}
+                  value={statistics.in_progress || 0}
+                  prefix={<UserOutlined style={{ color: '#1890ff' }} />}
+                  valueStyle={{ color: '#1890ff', fontWeight: 700, fontSize: '28px' }}
+                />
+              </div>
+            </Col>
+            <Col xs={24} sm={12} md={6}>
+              <div className="stats-card" style={{
+                padding: '24px',
+                background: 'linear-gradient(135deg, rgba(82, 196, 26, 0.1), rgba(102, 126, 234, 0.1))'
+              }}>
+                <Statistic
+                  title={<span style={{ fontWeight: 600, color: '#2c3e50' }}>今日完成</span>}
+                  value={statistics.completed_today || 0}
+                  prefix={<CheckOutlined style={{ color: '#52c41a' }} />}
+                  valueStyle={{ color: '#52c41a', fontWeight: 700, fontSize: '28px' }}
+                />
+              </div>
+            </Col>
+            <Col xs={24} sm={12} md={6}>
+              <div className="stats-card" style={{
+                padding: '24px',
+                background: 'linear-gradient(135deg, rgba(82, 196, 26, 0.1), rgba(102, 126, 234, 0.1))'
+              }}>
+                <Statistic
+                  title={<span style={{ fontWeight: 600, color: '#2c3e50' }}>总完成</span>}
+                  value={statistics.completed || 0}
+                  prefix={<CheckOutlined style={{ color: '#52c41a' }} />}
+                  valueStyle={{ color: '#52c41a', fontWeight: 700, fontSize: '28px' }}
+                />
+              </div>
+            </Col>
+          </Row>
 
       {/* 任务列表 */}
       <Card>
@@ -541,299 +595,8 @@ const ReviewManagementPage = () => {
         />
       </Card>
 
-      {/* 详情模态框 */}
-      <Modal
-        title={
-          <div style={{
-            fontSize: '18px',
-            fontWeight: 600,
-            color: '#1890ff',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}>
-            <FileTextOutlined />
-            商家合作详情
-          </div>
-        }
-        open={detailModalVisible}
-        onCancel={() => setDetailModalVisible(false)}
-        footer={[
-          <Button
-            key="close"
-            size="large"
-            onClick={() => setDetailModalVisible(false)}
-            style={{ minWidth: '100px' }}
-          >
-            关闭
-          </Button>
-        ]}
-        width={1200}
-        style={{ top: 20 }}
-      >
-        {selectedTask && (
-          <div style={{ maxHeight: '70vh', overflowY: 'auto', padding: '8px 0' }}>
-            {/* 基本信息卡片 */}
-            <Card
-              title={
-                <div style={{ color: '#1890ff', fontWeight: 600 }}>
-                  <UserOutlined style={{ marginRight: 8 }} />
-                  基本信息
-                </div>
-              }
-              style={{
-                marginBottom: 24,
-                borderRadius: '12px',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
-              }}
-              headStyle={{
-                background: 'linear-gradient(135deg, #f0f9ff, #e0f2fe)',
-                borderRadius: '12px 12px 0 0'
-              }}
-            >
-              <Row gutter={[24, 16]}>
-                <Col span={12}>
-                  <div style={{ marginBottom: 16 }}>
-                    <Text type="secondary" style={{ fontSize: '13px' }}>用户ID</Text>
-                    <div style={{
-                      fontSize: '15px',
-                      fontWeight: 500,
-                      color: '#262626',
-                      fontFamily: 'Monaco, monospace',
-                      background: '#f5f5f5',
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      marginTop: '4px'
-                    }}>
-                      {selectedTask.user_id}
-                    </div>
-                  </div>
-                </Col>
-                <Col span={12}>
-                  <div style={{ marginBottom: 16 }}>
-                    <Text type="secondary" style={{ fontSize: '13px' }}>公司名称</Text>
-                    <div style={{
-                      fontSize: '16px',
-                      fontWeight: 600,
-                      color: '#1890ff',
-                      marginTop: '4px'
-                    }}>
-                      {selectedTask.company_name}
-                    </div>
-                  </div>
-                </Col>
-                <Col span={12}>
-                  <div style={{ marginBottom: 16 }}>
-                    <Text type="secondary" style={{ fontSize: '13px' }}>联系人姓名</Text>
-                    <div style={{ fontSize: '15px', fontWeight: 500, marginTop: '4px' }}>
-                      {selectedTask.contact_name}
-                    </div>
-                  </div>
-                </Col>
-                <Col span={12}>
-                  <div style={{ marginBottom: 16 }}>
-                    <Text type="secondary" style={{ fontSize: '13px' }}>联系电话</Text>
-                    <div style={{ fontSize: '15px', fontWeight: 500, marginTop: '4px' }}>
-                      {selectedTask.contact_phone}
-                    </div>
-                  </div>
-                </Col>
-                <Col span={12}>
-                  <div style={{ marginBottom: 16 }}>
-                    <Text type="secondary" style={{ fontSize: '13px' }}>商家类型</Text>
-                    <div style={{ marginTop: '4px' }}>
-                      <Tag
-                        color="blue"
-                        style={{
-                          fontSize: '14px',
-                          padding: '4px 12px',
-                          borderRadius: '16px'
-                        }}
-                      >
-                        {merchantTypeMap[selectedTask.merchant_type]}
-                      </Tag>
-                    </div>
-                  </div>
-                </Col>
-                <Col span={12}>
-                  <div style={{ marginBottom: 16 }}>
-                    <Text type="secondary" style={{ fontSize: '13px' }}>申请状态</Text>
-                    <div style={{ marginTop: '4px' }}>
-                      <Tag
-                        color={statusMap[selectedTask.status]?.color}
-                        style={{
-                          fontSize: '14px',
-                          padding: '4px 12px',
-                          borderRadius: '16px'
-                        }}
-                      >
-                        {statusMap[selectedTask.status]?.text}
-                      </Tag>
-                    </div>
-                  </div>
-                </Col>
-                <Col span={12}>
-                  <div>
-                    <Text type="secondary" style={{ fontSize: '13px' }}>提交时间</Text>
-                    <div style={{ fontSize: '14px', marginTop: '4px' }}>
-                      {selectedTask.submitted_at ? new Date(selectedTask.submitted_at).toLocaleString() : '-'}
-                    </div>
-                  </div>
-                </Col>
-                <Col span={12}>
-                  <div>
-                    <Text type="secondary" style={{ fontSize: '13px' }}>联系邮箱</Text>
-                    <div style={{ fontSize: '14px', marginTop: '4px' }}>
-                      {selectedTask.contact_email || '未提供'}
-                    </div>
-                  </div>
-                </Col>
-              </Row>
-            </Card>
 
-            {/* 详细信息卡片 */}
-            {selectedTask.dynamic_fields && selectedTask.dynamic_fields.length > 0 && (
-              <Card
-                title={
-                  <div style={{ color: '#52c41a', fontWeight: 600 }}>
-                    <ProfileOutlined style={{ marginRight: 8 }} />
-                    详细信息
-                  </div>
-                }
-                style={{
-                  marginBottom: 24,
-                  borderRadius: '12px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
-                }}
-                headStyle={{
-                  background: 'linear-gradient(135deg, #f6ffed, #f0f9ff)',
-                  borderRadius: '12px 12px 0 0'
-                }}
-              >
-                <Row gutter={[24, 16]}>
-                  {selectedTask.dynamic_fields.map((field, index) => (
-                    <Col span={24} key={index}>
-                      <div style={{ marginBottom: 12 }}>
-                        <Text type="secondary" style={{ fontSize: '13px' }}>
-                          {getFieldDisplayName(field.field_name)}
-                        </Text>
-                        <div style={{
-                          fontSize: '15px',
-                          marginTop: '4px',
-                          padding: '8px 12px',
-                          background: '#fafafa',
-                          borderRadius: '6px',
-                          border: '1px solid #f0f0f0'
-                        }}>
-                          {getFieldValue(field.field_value)}
-                        </div>
-                      </div>
-                    </Col>
-                  ))}
-                </Row>
-              </Card>
-            )}
 
-            {/* 资质文档卡片 */}
-            {selectedTask.documents && selectedTask.documents.length > 0 && (
-              <Card
-                title={
-                  <div style={{ color: '#fa8c16', fontWeight: 600 }}>
-                    <FileTextOutlined style={{ marginRight: 8 }} />
-                    资质文档
-                    <Tag
-                      color="orange"
-                      style={{ marginLeft: 8, borderRadius: '12px' }}
-                    >
-                      共 {selectedTask.documents.length} 个文档
-                    </Tag>
-                  </div>
-                }
-                style={{
-                  borderRadius: '12px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
-                }}
-                headStyle={{
-                  background: 'linear-gradient(135deg, #fff7e6, #fef9e7)',
-                  borderRadius: '12px 12px 0 0'
-                }}
-              >
-                <List
-                  dataSource={selectedTask.documents}
-                  renderItem={(doc, index) => (
-                    <List.Item
-                      style={{
-                        padding: '16px',
-                        marginBottom: '8px',
-                        background: '#fafafa',
-                        borderRadius: '8px',
-                        border: '1px solid #f0f0f0'
-                      }}
-                      actions={[
-                        <Button
-                          type="primary"
-                          ghost
-                          icon={<EyeOutlined />}
-                          onClick={() => handleViewFile(doc.oss_url || doc.file_url, doc.file_name)}
-                          style={{ borderRadius: '6px' }}
-                        >
-                          查看
-                        </Button>
-                      ]}
-                    >
-                      <List.Item.Meta
-                        avatar={
-                          <div style={{
-                            width: 40,
-                            height: 40,
-                            background: 'linear-gradient(135deg, #ff9a9e, #fecfef)',
-                            borderRadius: '8px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}>
-                            <FileTextOutlined style={{ color: '#fff', fontSize: '18px' }} />
-                          </div>
-                        }
-                        title={
-                          <div
-                            style={{
-                              fontSize: '15px',
-                              fontWeight: 500,
-                              color: '#262626',
-                              cursor: 'pointer'
-                            }}
-                            onClick={() => handleViewFile(doc.oss_url || doc.file_url, doc.file_name)}
-                          >
-                            {doc.file_name}
-                          </div>
-                        }
-                        description={
-                          <div>
-                            <div style={{ color: '#8c8c8c', fontSize: '13px' }}>
-                              文件类型: {doc.file_type || 'APPLICATION/PDF'}
-                            </div>
-                            <div style={{ color: '#8c8c8c', fontSize: '13px', marginTop: '2px' }}>
-                              上传时间: {new Date(doc.upload_time).toLocaleString()}
-                            </div>
-                            <div style={{
-                              color: '#1890ff',
-                              fontSize: '12px',
-                              marginTop: '4px'
-                            }}>
-                              💡 点击文件名或"查看"按钮可在线查看文件
-                            </div>
-                          </div>
-                        }
-                      />
-                    </List.Item>
-                  )}
-                />
-              </Card>
-            )}
-          </div>
-        )}
-      </Modal>
 
       {/* 审核模态框 */}
       <Modal
@@ -885,7 +648,9 @@ const ReviewManagementPage = () => {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+        </div>
+      </Content>
+    </Layout>
   );
 };
 

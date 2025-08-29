@@ -12,15 +12,15 @@ class NotificationAgent extends BaseAgent {
     
     // 通知模板
     this.templates = {
-      merchant_submission_confirmation: {
-        title: '商家合作申请提交成功',
-        content: '您好 {{company_name}}，您的合作申请已成功提交，我们将在 {{review_time}} 小时内完成审核。申请编号：{{user_id}}',
-        channels: ['email', 'system']
+      application_submitted: {
+        subject: '合作申请提交成功',
+        content: '您好 {{company_name}}，您的合作申请已成功提交，我们将在 {{review_time}} 小时内完成审核。申请编号：{{id}}',
+        channel: 'email'
       },
-      reviewer_task_assigned: {
-        title: '新的审核任务分配',
-        content: '您好 {{reviewer_name}}，有新的商家审核任务分配给您。商家：{{company_name}}，申请编号：{{user_id}}，请及时处理。',
-        channels: ['email', 'system']
+      task_assigned: {
+        subject: '新的审核任务分配',
+        content: '您好 {{reviewer_name}}，有新的商家审核任务分配给您。商家：{{company_name}}，申请编号：{{id}}，请及时处理。',
+        channel: 'email'
       },
       merchant_approved: {
         title: '商家合作申请审核通过',
@@ -32,10 +32,10 @@ class NotificationAgent extends BaseAgent {
         content: '很抱歉，{{company_name}} 的合作申请未能通过审核。原因：{{rejection_reason}}。如有疑问，请联系我们的客服。',
         channels: ['email', 'system']
       },
-      reviewer_task_overdue: {
-        title: '审核任务超时提醒',
-        content: '您好 {{reviewer_name}}，您有一个审核任务已超时。商家：{{company_name}}，申请编号：{{user_id}}，请尽快处理。',
-        channels: ['email', 'system']
+      task_timeout: {
+        subject: '审核任务超时提醒',
+        content: '您好 {{reviewer_name}}，您有一个审核任务已超时。商家：{{company_name}}，申请编号：{{id}}，请尽快处理。',
+        channel: 'email'
       }
     };
 

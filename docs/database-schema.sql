@@ -292,5 +292,5 @@ INSERT INTO system_config (config_key, config_value, config_type, description) V
 ('llm.model_name', 'gpt-3.5-turbo', 'text', '使用的LLM模型名称'),
 ('oss.bucket_name', 'business-cooperation-docs', 'text', 'OSS存储桶名称'),
 ('oss.endpoint', 'oss-cn-hangzhou.aliyuncs.com', 'text', 'OSS服务端点'),
-('parsing.service_url', 'http://localhost:8000', 'text', '文档解析服务URL')
+('parsing.service_url', 'http://1.15.95.222:8000', 'text', '文档解析服务URL')
 ON DUPLICATE KEY UPDATE updated_at = CURRENT_TIMESTAMP;

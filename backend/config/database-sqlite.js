@@ -81,14 +81,60 @@ function getDatabase() {
 }
 
 /**
+ * 简单连接数据库（不运行完整初始化）
+ */
+async function connectDatabase() {
+  if (db) return db;
+
+  return new Promise((resolve, reject) => {
+    try {
+      // 确保数据目录存在
+      const dbDir = path.dirname(dbConfig.filename);
+      if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true });
+      }
+
+      // 创建数据库连接
+      db = new sqlite3.Database(dbConfig.filename, dbConfig.mode, (err) => {
+        if (err) {
+          console.error('❌ SQLite数据库连接失败:', err.message);
+          reject(err);
+        } else {
+          // 启用外键约束
+          db.run('PRAGMA foreign_keys = ON', (err) => {
+            if (err) {
+              console.warn('⚠️  启用外键约束失败:', err.message);
+            }
+            resolve(db);
+          });
+        }
+      });
+
+      // 设置错误处理
+      db.on('error', (err) => {
+        console.error('SQLite数据库错误:', err.message);
+      });
+
+    } catch (error) {
+      console.error('❌ 连接SQLite数据库失败:', error.message);
+      reject(error);
+    }
+  });
+}
+
+/**
  * 执行SQL查询（兼容MySQL接口）
  * @param {string} sql - SQL语句
  * @param {Array} params - 参数数组
  * @returns {Promise<Array>} 查询结果
  */
 async function execute(sql, params = []) {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     try {
+      // 如果数据库未连接，先连接
+      if (!db) {
+        await connectDatabase();
+      }
       const database = getDatabase();
       
       // 判断是SELECT还是其他操作
@@ -330,6 +376,7 @@ async function getDatabaseInfo() {
 
 module.exports = {
   initializeDatabase,
+  connectDatabase,
   getDatabase,
   execute,
   beginTransaction,

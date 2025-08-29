@@ -5,23 +5,23 @@ import {
   Select,
   Radio,
   Checkbox,
-  Upload,
   Button,
+  Upload,
+  message,
   Card,
   Steps,
-  message,
   Row,
-  Col,
-  Divider
+  Col
 } from 'antd';
 import {
+  RobotOutlined,
   InboxOutlined,
   SaveOutlined,
-  SendOutlined,
-  RobotOutlined
+  SendOutlined
 } from '@ant-design/icons';
+import { getFieldsByType } from '../config/merchant-fields';
 import axios from 'axios';
-import SmartFillForm from './SmartFillForm';
+import logger from '../utils/logger';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -35,7 +35,9 @@ const DynamicForm = ({
   initialFileList = [],
   onFileListChange,
   smartSuggestions = [],
-  onRequestSmartFill
+  onRequestSmartFill,
+  autoFillData,
+  onAutoFillComplete
 }) => {
   const [form] = Form.useForm();
   const [currentStep, setCurrentStep] = useState(0);
@@ -80,12 +82,6 @@ const DynamicForm = ({
     '其它'
   ];
 
-  // 合作诉求选项
-  const cooperationRequirements = [
-    '直播', '短视频', '共创品牌', '热荔（润物云）即时零售', 
-    '海外业务', '私域'
-  ];
-
   useEffect(() => {
     // 如果有初始数据，填充表单
     if (initialData && Object.keys(initialData).length > 0) {
@@ -102,6 +98,32 @@ const DynamicForm = ({
     }
   }, [initialData, form, onFormRef]);
 
+  // 处理自动填充数据
+  useEffect(() => {
+    if (autoFillData && Object.keys(autoFillData).length > 0) {
+      console.log('🔧 DynamicForm接收到自动填充数据:', autoFillData);
+
+      // 过滤掉null和undefined的字段
+      const validFields = {};
+      Object.keys(autoFillData).forEach(key => {
+        if (autoFillData[key] !== null && autoFillData[key] !== undefined && autoFillData[key] !== '') {
+          validFields[key] = autoFillData[key];
+        }
+      });
+
+      if (Object.keys(validFields).length > 0) {
+        // 使用setFieldsValue自动填充表单
+        form.setFieldsValue(validFields);
+        console.log('✅ 表单字段自动填充完成:', validFields);
+
+        // 通知父组件填充完成
+        if (onAutoFillComplete) {
+          onAutoFillComplete();
+        }
+      }
+    }
+  }, [autoFillData, form, onAutoFillComplete]);
+
   // 同步文件列表
   useEffect(() => {
     setFileList(initialFileList);
@@ -111,12 +133,12 @@ const DynamicForm = ({
    * 加载动态字段配置
    */
   const loadDynamicFields = async (type) => {
-    console.log('开始加载动态字段，商家类型:', type);
+    logger.api('GET', `/api/form/fields/${type}`, { type });
     try {
       const response = await axios.get(`/api/form/fields/${type}`);
-      console.log('API响应:', response.data);
+      logger.api('GET', `/api/form/fields/${type}`, response.data);
       if (response.data.success && response.data.data) {
-        console.log('从API加载的动态字段:', response.data.data);
+        logger.form('DynamicForm', '从API加载的动态字段', response.data.data);
         setDynamicFields(response.data.data);
       } else {
         console.error('API返回数据格式异常');
@@ -124,62 +146,24 @@ const DynamicForm = ({
       }
     } catch (error) {
       console.error('API调用失败:', error);
-      setDynamicFields([]);
+      // 如果API失败，使用本地配置作为备用方案
+      const fallbackFields = getFieldsByType(type).map(field => ({
+        field_name: field.name,
+        field_label: field.label,
+        field_type: field.type,
+        is_required: field.required,
+        field_options: field.options,
+        placeholder: field.placeholder
+      }));
+      setDynamicFields(fallbackFields);
     }
-  };
-
-  /**
-   * 获取默认字段配置
-   */
-  const getDefaultFields = (type) => {
-    const fieldConfigs = {
-      factory: [
-        { name: 'own_brand', label: '自有品牌', type: 'text', required: false },
-        { name: 'own_brand_operation_capability', label: '自有品牌运营能力', type: 'textarea', required: false },
-        { name: 'oem_brands', label: '代工的知名品牌', type: 'textarea', required: false },
-        { name: 'annual_production_capacity', label: '年生产规模（产能优势）', type: 'text', required: true },
-        { name: 'need_mold_modification', label: '是否需要开模或修改包装', type: 'radio', required: false, options: ['是', '否', '未确认'] },
-        { name: 'mold_modification_time', label: '预计开模或修改包装需要时间', type: 'text', required: false },
-        { name: 'accept_deep_cooperation', label: '是否接受和遥望深度合作', type: 'radio', required: true, options: ['是', '否'] },
-        { name: 'accept_brand_co_creation', label: '是否接受品牌共创', type: 'radio', required: false, options: ['是', '否'] },
-        { name: 'accept_exclusive_authorization', label: '是否接受线上或全渠道的独家授权', type: 'radio', required: false, options: ['是', '否'] },
-        { name: 'accept_other_channel_authorization', label: '是否接受遥望授权其他渠道售卖', type: 'radio', required: false, options: ['是', '否'] },
-        { name: 'accept_channel_profit_sharing', label: '是否接受后续全渠道分红', type: 'radio', required: false, options: ['是', '否'] }
-      ],
-      brand: [
-        { name: 'brand_name', label: '品牌名称', type: 'text', required: true },
-        { name: 'brand_awareness', label: '品牌知名度', type: 'textarea', required: false, placeholder: '可上传第三方平台店铺的首页截图' },
-        { name: 'sales_data', label: '销售数据', type: 'textarea', required: true, placeholder: '品牌线上销售数据、店铺自播数据、线下商超销售数据' },
-        { name: 'cooperation_budget', label: '合作预算', type: 'text', required: false, placeholder: '日常销售或营销预算投入' }
-      ],
-      agent: [
-        { name: 'agent_brand_names', label: '代理的品牌名称', type: 'textarea', required: true, placeholder: '没有填无，有就填写代理的具体品牌名称' },
-        { name: 'brand_awareness', label: '品牌知名度', type: 'textarea', required: false, placeholder: '可上传第三方平台店铺的首页截图' },
-        { name: 'sales_data', label: '销售数据', type: 'textarea', required: false, placeholder: '品牌线上销售、历史合作主播数据、线下商超销售数据' },
-        { name: 'cooperation_budget', label: '合作预算', type: 'text', required: false, placeholder: '日常销售或营销预算投入' }
-      ],
-      dealer: [
-        { name: 'dealer_brand_names', label: '经销的品牌名称', type: 'textarea', required: true, placeholder: '没有填无，有就填写经销品牌名称' },
-        { name: 'brand_awareness', label: '品牌知名度', type: 'textarea', required: false, placeholder: '可上传第三方平台店铺的首页截图' },
-        { name: 'sales_data', label: '销售数据', type: 'textarea', required: false, placeholder: '品牌线上销售、历史合作主播数据、线下商超销售数据' },
-        { name: 'cooperation_budget', label: '合作预算', type: 'text', required: false, placeholder: '日常销售或营销预算投入' }
-      ],
-      operator: [
-        { name: 'operated_brand_names', label: '代运营的品牌名称', type: 'textarea', required: true, placeholder: '填写代运营的品牌名称' },
-        { name: 'brand_awareness', label: '品牌知名度', type: 'textarea', required: false, placeholder: '可上传第三方平台店铺的首页截图' },
-        { name: 'sales_data', label: '销售数据', type: 'textarea', required: true, placeholder: '品牌线上销售、店铺自播数据、线下商超销售数据' },
-        { name: 'cooperation_budget', label: '合作预算', type: 'text', required: true, placeholder: '近期日常销售或营销预算可投入的具体金额' }
-      ]
-    };
-
-    return fieldConfigs[type] || [];
   };
 
   /**
    * 商家类型变化处理
    */
   const handleMerchantTypeChange = (value) => {
-    console.log('商家类型变化:', value);
+    logger.form('DynamicForm', '商家类型变化', value);
     setMerchantType(value);
     loadDynamicFields(value);
 
@@ -208,7 +192,14 @@ const DynamicForm = ({
    * 渲染动态字段
    */
   const renderDynamicField = (field) => {
-    const { name, label, type, required, options, placeholder } = field;
+    const {
+      field_name: name,
+      field_label: label,
+      field_type: type,
+      is_required: required,
+      field_options: options,
+      placeholder
+    } = field;
 
     const commonProps = {
       name,
@@ -283,7 +274,7 @@ const DynamicForm = ({
       if (file.response && file.response.data && file.response.data.document_id) {
         const documentId = file.response.data.document_id;
 
-        console.log(`🗑️ 删除服务器文档: ${documentId}`);
+        logger.api('DELETE', `/api/document/delete/${documentId}`, { documentId });
 
         const response = await axios.delete(`/api/document/delete/${documentId}`, {
           headers: {
@@ -326,14 +317,33 @@ const DynamicForm = ({
     multiple: true,
     fileList,
     beforeUpload: (file) => {
-      const isValidType = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/jpeg', 'image/png'].includes(file.type);
+      const isValidType = [
+        'application/pdf', // PDF
+        'application/msword', // DOC
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+        'application/epub+zip', // EPUB
+        'text/plain', // TXT
+        'text/html', // HTML
+        'text/xml', // XML
+        'text/markdown', // MD
+        'application/json', // JSON
+        'text/csv', // CSV
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // XLSX
+        'application/vnd.ms-excel', // XLS
+        'text/tab-separated-values', // TSV
+        'image/png', // PNG
+        'image/jpeg', // JPG/JPEG
+        'image/jpg' // JPG
+      ].includes(file.type);
+      
       if (!isValidType) {
-        message.error('只支持上传 PDF、Word、JPG、PNG 格式的文件！');
+        message.error('只支持上传 PDF、Word、Excel、EPUB、文本、图片等格式的文件！');
         return false;
       }
-      const isLt10M = file.size / 1024 / 1024 < 10;
+      
+      const isLt10M = file.size / 1024 / 1024 < 100;
       if (!isLt10M) {
-        message.error('文件大小不能超过 10MB！');
+        message.error('文件大小不能超过 100MB！');
         return false;
       }
       return false; // 阻止自动上传
@@ -356,7 +366,7 @@ const DynamicForm = ({
   const saveCurrentStepData = () => {
     const currentValues = form.getFieldsValue();
     setAllFormData(prev => ({ ...prev, ...currentValues }));
-    console.log('保存当前步骤数据:', currentValues);
+    logger.form('DynamicForm', '保存当前步骤数据', currentValues);
   };
 
   /**
@@ -369,7 +379,7 @@ const DynamicForm = ({
         try {
           await form.validateFields(['merchant_type']);
         } catch (error) {
-          console.log('第一步验证失败:', error);
+          logger.form('DynamicForm', '第一步验证失败', error);
           return;
         }
       }
@@ -394,13 +404,13 @@ const DynamicForm = ({
    */
   const handleSubmit = async (values) => {
     try {
-      console.log('🚀 开始提交表单...', values);
+      logger.form('DynamicForm', '开始提交表单', values);
       setLoading(true);
 
       // 合并所有步骤的数据
       const allData = { ...allFormData, ...values };
 
-      console.log('📋 提交的完整数据:', allData);
+      logger.form('DynamicForm', '提交的完整数据', allData);
 
       // 准备表单数据
       const formData = new FormData();
@@ -442,7 +452,7 @@ const DynamicForm = ({
    */
   const handleSaveDraft = async () => {
     try {
-      const values = await form.validateFields();
+      await form.validateFields();
       // 这里可以调用保存草稿的API
       message.success('草稿保存成功！');
     } catch (error) {
@@ -496,7 +506,7 @@ const DynamicForm = ({
         onValuesChange={(changedValues, allValues) => {
           // 监听商家类型字段变化
           if (changedValues.merchant_type && changedValues.merchant_type !== merchantType) {
-            console.log('🔄 onValuesChange检测到商家类型变化:', changedValues.merchant_type);
+            logger.form('DynamicForm', 'onValuesChange检测到商家类型变化', changedValues.merchant_type);
             setMerchantType(changedValues.merchant_type);
             loadDynamicFields(changedValues.merchant_type);
 
@@ -508,7 +518,7 @@ const DynamicForm = ({
 
           // 额外检查：如果allValues中有merchant_type但状态为空，也要同步
           if (allValues.merchant_type && !merchantType && !changedValues.merchant_type) {
-            console.log('🔧 onValuesChange检测到状态不同步，修复中...', allValues.merchant_type);
+            logger.form('DynamicForm', 'onValuesChange检测到状态不同步，修复中', allValues.merchant_type);
             setMerchantType(allValues.merchant_type);
             loadDynamicFields(allValues.merchant_type);
 
@@ -677,7 +687,7 @@ const DynamicForm = ({
           </div>
 
           {/* 基础信息智能分析 */}
-          {smartSuggestions.length > 0 && (
+          {smartSuggestions.filter(s => s.stage === 'basic').length > 0 && (
             <div style={{ marginTop: '24px' }}>
               <Card
                 title={
@@ -690,22 +700,30 @@ const DynamicForm = ({
                       marginRight: '12px'
                     }} />
                     <RobotOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
-                    智能填写建议 - 基础信息
+                    智能分析建议 - 基础信息
                   </div>
                 }
                 className="modern-card"
                 style={{ marginBottom: 24 }}
               >
-                <SmartFillForm
-                  form={form}
-                  suggestions={smartSuggestions.filter(s =>
-                    ['company_name', 'product_category', 'specific_products', 'contact_name', 'contact_phone', 'contact_email', 'merchant_type'].includes(s.field_name)
-                  )}
-                  onFieldsUpdated={(fields) => {
-                    console.log('基础信息字段已更新:', fields);
-                    message.success('基础信息智能填写完成');
-                  }}
-                />
+                <div style={{ padding: '16px 0' }}>
+                  {smartSuggestions
+                    .filter(s => s.stage === 'basic')
+                    .map((suggestion, index) => (
+                      <div key={index} style={{
+                        padding: '12px 16px',
+                        marginBottom: '8px',
+                        background: '#f6ffed',
+                        border: '1px solid #b7eb8f',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        lineHeight: '1.6'
+                      }}>
+                        💡 {typeof suggestion === 'string' ? suggestion : suggestion.text || suggestion.content || JSON.stringify(suggestion)}
+                      </div>
+                    ))
+                  }
+                </div>
               </Card>
             </div>
           )}
@@ -737,20 +755,20 @@ const DynamicForm = ({
           {(() => {
             // 检查表单值与状态的一致性
             const formMerchantType = form.getFieldValue('merchant_type');
-            console.log('=== 第二步渲染调试信息 ===');
-            console.log('merchantType状态:', merchantType);
-            console.log('表单merchant_type值:', formMerchantType);
-            console.log('dynamicFields.length:', dynamicFields.length);
+            logger.debug('=== 第二步渲染调试信息 ===');
+            logger.debug('merchantType状态:', merchantType);
+            logger.debug('表单merchant_type值:', formMerchantType);
+            logger.debug('dynamicFields.length:', dynamicFields.length);
 
             // 如果表单有值但状态为空，自动同步
             if (formMerchantType && !merchantType) {
-              console.log('🔧 检测到状态不同步，自动修复...');
+              logger.form('DynamicForm', '检测到状态不同步，自动修复', formMerchantType);
               setTimeout(() => {
                 setMerchantType(formMerchantType);
                 loadDynamicFields(formMerchantType);
               }, 0);
             }
-            console.log('=========================');
+            logger.debug('=========================');
             return null;
           })()}
           {merchantType ? (
@@ -782,7 +800,7 @@ const DynamicForm = ({
                 </Card>
 
                 {/* 详细信息智能分析 */}
-                {smartSuggestions.length > 0 && (
+                {smartSuggestions.filter(s => s.stage === 'detailed').length > 0 && (
                   <div style={{ marginTop: '24px' }}>
                     <Card
                       title={
@@ -795,22 +813,30 @@ const DynamicForm = ({
                             marginRight: '12px'
                           }} />
                           <RobotOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
-                          智能填写建议 - 详细信息
+                          智能分析建议 - 详细信息
                         </div>
                       }
                       className="modern-card"
                       style={{ marginBottom: 24 }}
                     >
-                      <SmartFillForm
-                        form={form}
-                        suggestions={smartSuggestions.filter(s =>
-                          !['company_name', 'product_category', 'specific_products', 'contact_name', 'contact_phone', 'contact_email', 'merchant_type'].includes(s.field_name)
-                        )}
-                        onFieldsUpdated={(fields) => {
-                          console.log('详细信息字段已更新:', fields);
-                          message.success('详细信息智能填写完成');
-                        }}
-                      />
+                      <div style={{ padding: '16px 0' }}>
+                        {smartSuggestions
+                          .filter(s => s.stage === 'detailed')
+                          .map((suggestion, index) => (
+                            <div key={index} style={{
+                              padding: '12px 16px',
+                              marginBottom: '8px',
+                              background: '#f6ffed',
+                              border: '1px solid #b7eb8f',
+                              borderRadius: '8px',
+                              fontSize: '14px',
+                              lineHeight: '1.6'
+                            }}>
+                              💡 {typeof suggestion === 'string' ? suggestion : suggestion.text || suggestion.content || JSON.stringify(suggestion)}
+                            </div>
+                          ))
+                        }
+                      </div>
                     </Card>
                   </div>
                 )}
@@ -1003,7 +1029,7 @@ const DynamicForm = ({
                   点击或拖拽文件到此区域上传
                 </p>
                 <p className="ant-upload-hint" style={{ color: '#666', fontSize: '14px' }}>
-                  支持单个或批量上传。支持 PDF、Word、JPG、PNG 格式，单个文件不超过 10MB
+                  支持单个或批量上传。支持 PDF、Word、Excel、EPUB、文本、图片等格式，单个文件不超过 100MB
                 </p>
               </Dragger>
             </Form.Item>

@@ -16,6 +16,7 @@ import MerchantApplicationPage from './components/MerchantApplicationPage';
 import MerchantDashboard from './components/MerchantDashboard';
 import ReviewManagementPage from './components/ReviewManagementPage';
 import ApplicationDetailPage from './components/ApplicationDetailPage';
+import ReviewDetailPage from './components/ReviewDetailPage';
 import './App.css';
 
 const { Header, Content } = Layout;
@@ -69,11 +70,6 @@ function AppContent() {
           key: '/',
           icon: <HomeOutlined />,
           label: '我的任务'
-        },
-        {
-          key: '/review',
-          icon: <AuditOutlined />,
-          label: '审核管理'
         }
       );
     }
@@ -221,15 +217,9 @@ function AppContent() {
           <Route
             path="/review"
             element={
-              user.role === 'admin' ? (
-                <ProtectedRoute requiredRole="admin">
-                  <ReviewManagementPage />
-                </ProtectedRoute>
-              ) : (
-                <ProtectedRoute requiredRole="reviewer">
-                  <ReviewManagementPage />
-                </ProtectedRoute>
-              )
+              <ProtectedRoute requiredRole="admin">
+                <ReviewManagementPage />
+              </ProtectedRoute>
             }
           />
           <Route
@@ -238,6 +228,20 @@ function AppContent() {
               <ProtectedRoute requiredRole="merchant">
                 <ApplicationDetailPage />
               </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/review/detail/:applicationId"
+            element={
+              user.role === 'admin' ? (
+                <ProtectedRoute requiredRole="admin">
+                  <ReviewDetailPage />
+                </ProtectedRoute>
+              ) : (
+                <ProtectedRoute requiredRole="reviewer">
+                  <ReviewDetailPage />
+                </ProtectedRoute>
+              )
             }
           />
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -35,6 +35,7 @@ class ReviewService {
       SELECT 
         wt.task_id,
         wt.user_id,
+        wt.application_id,
         wt.task_type,
         wt.status,
         wt.assigned_to,
@@ -50,7 +51,7 @@ class ReviewService {
         bc.status as merchant_status,
         bc.submitted_at
       FROM workflow_tasks wt
-      LEFT JOIN business_cooperation bc ON wt.user_id = bc.user_id
+      LEFT JOIN business_cooperation bc ON wt.application_id = bc.application_id
       ${whereClause}
       ORDER BY wt.created_at DESC
       LIMIT ? OFFSET ?
@@ -63,7 +64,7 @@ class ReviewService {
     const countSql = `
       SELECT COUNT(*) as total
       FROM workflow_tasks wt
-      LEFT JOIN business_cooperation bc ON wt.user_id = bc.user_id
+      LEFT JOIN business_cooperation bc ON wt.application_id = bc.application_id
       ${whereClause}
     `;
     const countResult = await this.db.execute(countSql, queryParams);
@@ -73,6 +74,7 @@ class ReviewService {
     const formattedTasks = tasks.map(task => ({
       task_id: task.task_id,
       user_id: task.user_id,
+      application_id: task.application_id,
       company_name: task.company_name || '未知公司',
       merchant_type: task.merchant_type || 'unknown',
       contact_name: task.contact_name || '未知联系人',
@@ -156,10 +158,10 @@ class ReviewService {
       // 记录历史
       await transaction.execute(`
         INSERT INTO workflow_history 
-        (user_id, task_id, action, actor_type, actor_id, actor_name, from_status, to_status, comment, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        (user_id, application_id, task_id, action, actor_type, actor_id, actor_name, from_status, to_status, comment, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `, [
-        task.user_id, taskId, 'assigned', 'system', 'system', 
+        task.user_id, task.application_id, taskId, 'assigned', 'system', 'system', 
         'System', task.status, 'in_progress', `任务分配给 ${reviewerId}`
       ]);
       
@@ -207,10 +209,10 @@ class ReviewService {
       // 记录审核历史
       await transaction.execute(`
         INSERT INTO workflow_history 
-        (user_id, task_id, action, actor_type, actor_id, actor_name, from_status, to_status, comment, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        (user_id, application_id, task_id, action, actor_type, actor_id, actor_name, from_status, to_status, comment, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `, [
-        task.user_id, taskId, 'reviewed', 'reviewer', reviewerId, 
+        task.user_id, task.application_id, taskId, 'reviewed', 'reviewer', reviewerId, 
         reviewerId, task.status, newStatus, comment
       ]);
       
@@ -255,9 +257,9 @@ class ReviewService {
         GROUP_CONCAT(md.field_name || ':' || md.field_value, ';') as dynamic_fields,
         COUNT(bqd.file_id) as document_count
       FROM business_cooperation bc
-      LEFT JOIN merchant_details md ON bc.user_id = md.user_id
+      LEFT JOIN merchant_details md ON bc.application_id = md.application_id
       LEFT JOIN business_qualification_document bqd ON bc.user_id = bqd.user_id
-      GROUP BY bc.user_id
+      GROUP BY bc.application_id
       ORDER BY bc.submitted_at DESC
     `;
     
@@ -284,11 +286,11 @@ class ReviewService {
       throw new Error('申请不存在');
     }
     
-    // 获取动态字段
-    const dynamicFields = await this.db.execute(
-      'SELECT * FROM merchant_details WHERE user_id = ? ORDER BY created_at',
-      [userId]
-    );
+          // 获取动态字段
+      const dynamicFields = await this.db.execute(
+        'SELECT * FROM merchant_details WHERE application_id = ? ORDER BY created_at',
+        [applicationId]
+      );
     
     // 获取文档
     const documents = await this.db.execute(

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import logger from '../utils/logger';
 import { message } from 'antd';
 
 const AuthContext = createContext();
@@ -35,14 +36,14 @@ export const AuthProvider = ({ children }) => {
 
   const API_BASE = getApiBaseUrl();
 
-  console.log('AuthContext initialized with API_BASE:', API_BASE);
+  logger.component('AuthContext', 'initialized with API_BASE', API_BASE);
 
   // 初始化时检查本地存储的token
   useEffect(() => {
     const savedToken = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
 
-    console.log('AuthContext初始化 - 检查本地存储:', {
+    logger.component('AuthContext', '初始化 - 检查本地存储', {
       hasToken: !!savedToken,
       hasUser: !!savedUser,
       tokenPreview: savedToken ? savedToken.substring(0, 20) + '...' : null
@@ -62,14 +63,14 @@ export const AuthProvider = ({ children }) => {
           }, 100);
         }
 
-        console.log('✅ 恢复认证状态成功');
+        logger.component('AuthContext', '恢复认证状态成功');
       } catch (error) {
         console.error('Failed to parse saved user data:', error);
         localStorage.removeItem('token');
         localStorage.removeItem('user');
       }
     } else {
-      console.log('❌ 没有找到保存的认证信息');
+      logger.component('AuthContext', '没有找到保存的认证信息');
     }
     setLoading(false);
   }, []);
@@ -77,10 +78,10 @@ export const AuthProvider = ({ children }) => {
   // 登录函数
   const login = async (username, password) => {
     try {
-      console.log('Attempting login with:', { username, API_BASE });
+      logger.api('POST', `${API_BASE}/auth/login`, { username });
 
       // 先测试网络连接
-      console.log('Testing network connection...');
+      logger.component('AuthContext', 'Testing network connection');
 
       const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
@@ -90,15 +91,15 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ username, password })
       });
 
-      console.log('Login response status:', response.status);
-      console.log('Login response headers:', Object.fromEntries(response.headers.entries()));
+      logger.api('POST', `${API_BASE}/auth/login`, { status: response.status });
+      logger.debug('Login response headers:', Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('Login response data:', data);
+      logger.api('POST', `${API_BASE}/auth/login`, data);
 
       if (data.success) {
         setToken(data.token);
@@ -130,6 +131,12 @@ export const AuthProvider = ({ children }) => {
 
   // 获取文档列表
   const fetchDocuments = async () => {
+    // 检查是否有有效的token
+    if (!token) {
+      logger.component('AuthContext', '获取文档列表失败：无有效token');
+      return [];
+    }
+
     try {
       const response = await apiRequest('/document/list');
       if (response && response.success) {
@@ -137,7 +144,11 @@ export const AuthProvider = ({ children }) => {
         return response.data || [];
       }
     } catch (error) {
-      console.error('获取文档列表失败:', error);
+      logger.error('获取文档列表失败:', error);
+      // 如果是认证错误，清除token
+      if (error.response && error.response.status === 401) {
+        logout();
+      }
     }
     return [];
   };
@@ -149,6 +160,12 @@ export const AuthProvider = ({ children }) => {
 
   // 删除文档
   const removeDocument = async (documentId) => {
+    // 检查是否有有效的token
+    if (!token) {
+      logger.component('AuthContext', '删除文档失败：无有效token');
+      return false;
+    }
+
     try {
       const response = await apiRequest(`/document/delete/${documentId}`, {
         method: 'DELETE'
@@ -159,7 +176,11 @@ export const AuthProvider = ({ children }) => {
         return true;
       }
     } catch (error) {
-      console.error('删除文档失败:', error);
+      logger.error('删除文档失败:', error);
+      // 如果是认证错误，清除token
+      if (error.response && error.response.status === 401) {
+        logout();
+      }
     }
     return false;
   };
@@ -201,7 +222,7 @@ export const AuthProvider = ({ children }) => {
   const hasPermission = (requiredRole) => {
     if (!user) return false;
 
-    console.log('权限检查:', { userRole: user.role, requiredRole });
+    logger.component('AuthContext', '权限检查', { userRole: user.role, requiredRole });
 
     // 简化权限检查 - 精确匹配或管理员权限
     if (user.role === 'admin') return true; // 管理员有所有权限
@@ -217,7 +238,7 @@ export const AuthProvider = ({ children }) => {
     const userLevel = roleHierarchy[user.role] || 0;
     const requiredLevel = roleHierarchy[requiredRole] || 0;
 
-    console.log('权限级别:', { userLevel, requiredLevel, hasPermission: userLevel >= requiredLevel });
+    logger.component('AuthContext', '权限级别', { userLevel, requiredLevel, hasPermission: userLevel >= requiredLevel });
 
     return userLevel >= requiredLevel;
   };

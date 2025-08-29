@@ -9,6 +9,7 @@
     "test-db": "node scripts/test-db.js"
   },
   "dependencies": {
+    "ali-oss": "^6.23.0",
     "axios": "^1.11.0",
     "bcrypt": "^6.0.0",
     "body-parser": "^1.20.2",
@@ -19,7 +20,9 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "mysql2": "^3.6.0",
+    "openai": "^5.15.0",
     "sqlite3": "^5.1.6",
+    "unstructured-client": "^0.26.3",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
